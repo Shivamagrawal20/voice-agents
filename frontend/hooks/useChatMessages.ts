@@ -1,4 +1,4 @@
-import { useMemo, useEffect, useState } from 'react';
+import { useMemo, useEffect, useState, useRef } from 'react';
 import { Room, RoomEvent, DataPacket_Kind } from 'livekit-client';
 import {
   type ReceivedChatMessage,
@@ -51,7 +51,8 @@ export function useChatMessages() {
   const room = useRoomContext();
   const transcriptions: TextStreamData[] = useTranscriptions();
   const [persistedMessages, setPersistedMessages] = useState<ExtendedChatMessage[]>([]);
-  const [optionsMap, setOptionsMap] = useState<Map<string, ChatOption[]>>(new Map());
+  const [optionsMap, setOptionsMap] = useState<Map<string, any>>(new Map());
+  const usedOptionsRef = useRef<Set<string>>(new Set());
 
   // Load persisted messages on mount
   useEffect(() => {
@@ -81,12 +82,16 @@ export function useChatMessages() {
         const data = JSON.parse(text);
         
         if (data.type === 'chat_options' && data.options) {
-          // Associate options with the most recent agent message
-          // We'll use a timestamp-based key
+          // Store options with message text for better matching
           const key = data.message_id || `options_${Date.now()}`;
           setOptionsMap((prev) => {
             const newMap = new Map(prev);
-            newMap.set(key, data.options);
+            // Store with both timestamp and message text for matching
+            newMap.set(key, {
+              options: data.options,
+              messageText: data.message_text || '',
+              timestamp: Date.now()
+            });
             return newMap;
           });
         }
@@ -102,21 +107,65 @@ export function useChatMessages() {
     };
   }, [room]);
 
+  // Clean up used and expired options from map
+  useEffect(() => {
+    if (optionsMap.size === 0) return;
+    
+    const now = Date.now();
+    setOptionsMap((prev) => {
+      const newMap = new Map(prev);
+      let changed = false;
+      for (const [key, _] of newMap.entries()) {
+        // Remove if used or expired
+        if (usedOptionsRef.current.has(key)) {
+          newMap.delete(key);
+          usedOptionsRef.current.delete(key);
+          changed = true;
+        } else {
+          const keyTime = parseInt(key.split('_').pop() || '0');
+          if (now - keyTime > 5000) {
+            newMap.delete(key);
+            changed = true;
+          }
+        }
+      }
+      return changed ? newMap : prev;
+    });
+  }, [transcriptions, optionsMap]);
+
   const mergedTranscriptions = useMemo(() => {
     const merged: Array<ExtendedChatMessage> = [
       ...persistedMessages,
       ...transcriptions.map((transcription) => {
         const msg = transcriptionToChatMessage(transcription, room);
         // Try to find options for this message
-        // Match by timestamp (within 2 seconds) and remote participant
-        if (!msg.from?.isLocal && !msg.options) {
-          const matchingKey = Array.from(optionsMap.keys()).find((key) => {
+        // First check if options are embedded in the message text
+        if (msg.options) {
+          return msg; // Options already parsed from text
+        }
+        
+        // If no embedded options, try to match from data channel
+        if (!msg.from?.isLocal) {
+          // Match by message text first, then by timestamp (within 3 seconds)
+          const optionsEntry = Array.from(optionsMap.entries()).find(([key, value]) => {
+            if (usedOptionsRef.current.has(key)) return false; // Skip already used options
+            const entry = value as any;
+            // Try matching by message text first
+            if (entry.messageText && msg.message.toLowerCase().includes(entry.messageText.toLowerCase().substring(0, 20))) {
+              return true;
+            }
+            // Fallback to timestamp matching
             const keyTime = parseInt(key.split('_').pop() || '0');
             const timeDiff = Math.abs(msg.timestamp - keyTime);
-            return timeDiff < 2000; // Within 2 seconds
+            return timeDiff < 3000; // Within 3 seconds
           });
-          if (matchingKey) {
-            msg.options = optionsMap.get(matchingKey);
+          
+          if (optionsEntry) {
+            const [key, value] = optionsEntry;
+            const entry = value as any;
+            msg.options = entry.options || entry;
+            // Mark as used
+            usedOptionsRef.current.add(key);
           }
         }
         return msg;

@@ -54,18 +54,22 @@ Your job is to:
    - name: The customer's name for the order
 
 3. Ask one question at a time, wait for the answer, then move to the next field
-4. When asking questions, use the send_message_with_options tool to provide clickable options to make it easier for customers
-5. Use the update_order_field tool to save each piece of information as the customer provides it
-6. Use the get_order_status tool to check what information you still need
-7. Once all fields are filled (drinkType, size, milk, extras, and name), use the save_order tool to complete the order
-8. After saving, confirm the order back to the customer in a friendly way
+4. IMPORTANT: Do NOT repeat the same question. Only ask each question once. If you've already asked a question, wait for the customer's response.
+5. When asking questions, use the send_message_with_options tool to provide clickable options to make it easier for customers
+6. Use the update_order_field tool to save each piece of information as the customer provides it
+7. Use the get_order_status tool to check what information you still need
+8. Once all fields are filled (drinkType, size, milk, extras, and name), use the save_order tool to complete the order
+9. After saving, confirm the order back to the customer in a friendly way
 
-Be conversational, friendly, and helpful. If a customer seems unsure, offer suggestions. Keep your responses concise and natural for voice interaction. Don't use emojis, asterisks, or special formatting in your speech.""",
+Be conversational, friendly, and helpful. If a customer seems unsure, offer suggestions. Keep your responses concise and natural for voice interaction. Don't use emojis, asterisks, or special formatting in your speech. Never repeat the same question - wait for the customer's response.""",
         )
         
         # Store session and room references for sending messages with options
         self._session = None
         self._room = None
+        # Track last message to prevent duplicates
+        self._last_message = None
+        self._last_message_time = 0
 
     @function_tool
     async def update_order_field(self, context: RunContext, field: str, value: str):
@@ -143,12 +147,24 @@ Be conversational, friendly, and helpful. If a customer seems unsure, offer sugg
         Use this when asking questions to make it easier for customers to respond.
         The options will appear as clickable buttons in the chat interface.
         
+        IMPORTANT: Only call this once per question. Do not repeat the same question.
+        Check if you've already asked this question before calling this tool.
+        
         Args:
             message: The message/question to send to the customer (this will be spoken)
             options: A JSON string array of options, e.g., '["Latte", "Cappuccino", "Espresso", "Mocha"]'
                     or a comma-separated string like "small, medium, large"
         """
         try:
+            import time
+            current_time = time.time()
+            
+            # Prevent duplicate messages within 3 seconds
+            if (self._last_message == message and 
+                current_time - self._last_message_time < 3.0):
+                logger.info(f"Skipping duplicate message: {message}")
+                return f"Message already sent recently. Skipping duplicate."
+            
             # Parse options - handle both JSON array and comma-separated strings
             import json
             if options.startswith('['):
@@ -164,23 +180,36 @@ Be conversational, friendly, and helpful. If a customer seems unsure, offer sugg
                 # Send the clean message to TTS (this will be spoken)
                 await self._session.say(message, allow_interruptions=True)
                 
-                # Send options via data channel (won't be spoken)
-                # Format: message with options embedded for frontend parsing
+                # Small delay to ensure message is processed
+                import asyncio
+                await asyncio.sleep(0.1)
+                
+                # Send options via data channel AND embed in text stream as fallback
                 options_data = {
                     "type": "chat_options",
                     "options": json.loads(options_json),
-                    "message_id": f"msg_{int(datetime.now().timestamp() * 1000)}"
+                    "message_id": f"msg_{int(datetime.now().timestamp() * 1000)}",
+                    "message_text": message  # Include message text for matching
                 }
                 
                 # Send via room data channel
                 data = json.dumps(options_data).encode('utf-8')
                 await self._room.local_participant.publish_data(data, reliable=True)
+                
+                # Also send as text stream with options embedded (fallback for frontend)
+                # This ensures options are always available even if data channel fails
+                message_with_options = f"{message} __OPTIONS__{options_json}"
+                await self._session.say(message_with_options, allow_interruptions=False)
             else:
                 logger.warning("Session or room not available for sending message with options")
                 # Fallback: send message with options embedded (frontend will parse)
                 if self._session:
                     message_with_options = f"{message} __OPTIONS__{options_json}"
                     await self._session.say(message_with_options, allow_interruptions=True)
+            
+            # Update last message tracking
+            self._last_message = message
+            self._last_message_time = current_time
             
             return f"Sent message with {len(options_list)} options"
         except Exception as e:
