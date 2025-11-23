@@ -2,10 +2,16 @@
 
 import { AnimatePresence, type HTMLMotionProps, motion } from 'motion/react';
 import { type ReceivedChatMessage } from '@livekit/components-react';
+import { useChat } from '@livekit/components-react';
 import { ChatEntry } from '@/components/livekit/chat-entry';
+import type { ChatOption } from '@/components/livekit/chat-options';
 
 const MotionContainer = motion.create('div');
 const MotionChatEntry = motion.create(ChatEntry);
+
+interface ExtendedChatMessage extends ReceivedChatMessage {
+  options?: ChatOption[];
+}
 
 const CONTAINER_MOTION_PROPS = {
   variants: {
@@ -50,7 +56,7 @@ const MESSAGE_MOTION_PROPS = {
 
 interface ChatTranscriptProps {
   hidden?: boolean;
-  messages?: ReceivedChatMessage[];
+  messages?: ExtendedChatMessage[];
 }
 
 export function ChatTranscript({
@@ -58,11 +64,18 @@ export function ChatTranscript({
   messages = [],
   ...props
 }: ChatTranscriptProps & Omit<HTMLMotionProps<'div'>, 'ref'>) {
+  const { send } = useChat();
+
+  const handleOptionSelect = async (value: string) => {
+    // Send the selected option as a chat message
+    await send(value);
+  };
+
   return (
     <AnimatePresence>
       {!hidden && (
         <MotionContainer {...CONTAINER_MOTION_PROPS} {...props}>
-          {messages.map(({ id, timestamp, from, message, editTimestamp }: ReceivedChatMessage) => {
+          {messages.map(({ id, timestamp, from, message, editTimestamp, options }: ExtendedChatMessage) => {
             const locale = navigator?.language ?? 'en-US';
             const messageOrigin = from?.isLocal ? 'local' : 'remote';
             const hasBeenEdited = !!editTimestamp;
@@ -75,6 +88,8 @@ export function ChatTranscript({
                 message={message}
                 messageOrigin={messageOrigin}
                 hasBeenEdited={hasBeenEdited}
+                options={options}
+                onOptionSelect={handleOptionSelect}
                 {...MESSAGE_MOTION_PROPS}
               />
             );
