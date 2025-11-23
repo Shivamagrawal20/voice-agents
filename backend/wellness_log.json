@@ -1,0 +1,28 @@
+{
+  "check_ins": [
+    {
+      "date": "2025-11-23",
+      "time": "23:53:10",
+      "timestamp": "2025-11-23T23:53:10.962446",
+      "mood": "fine",
+      "energy": "great",
+      "stress": "assignment submission",
+      "objectives": [
+        "Complete assignment before the due date today."
+      ],
+      "summary": "Today you're feeling fine with great energy, and your main objective is to complete an assignment before the due date."
+    },
+    {
+      "date": "2025-11-24",
+      "time": "00:26:08",
+      "timestamp": "2025-11-24T00:26:08.193995",
+      "mood": "very sick",
+      "energy": "very low",
+      "stress": "headache from completing five assignments",
+      "objectives": [
+        "Complete five assignments"
+      ],
+      "summary": "The user is feeling very sick with very low energy and is stressed about completing five assignments today."
+    }
+  ]
+}
