@@ -1,5 +1,6 @@
 import * as React from 'react';
 import { cn } from '@/lib/utils';
+import { ChatOptions, type ChatOption } from './chat-options';
 
 export interface ChatEntryProps extends React.HTMLAttributes<HTMLLIElement> {
   /** The locale to use for the timestamp. */
@@ -14,6 +15,10 @@ export interface ChatEntryProps extends React.HTMLAttributes<HTMLLIElement> {
   name?: string;
   /** Whether the message has been edited. */
   hasBeenEdited?: boolean;
+  /** Options to display as clickable buttons. */
+  options?: ChatOption[];
+  /** Callback when an option is selected. */
+  onOptionSelect?: (value: string) => void;
 }
 
 export const ChatEntry = ({
@@ -23,6 +28,8 @@ export const ChatEntry = ({
   message,
   messageOrigin,
   hasBeenEdited = false,
+  options,
+  onOptionSelect,
   className,
   ...props
 }: ChatEntryProps) => {
@@ -48,14 +55,28 @@ export const ChatEntry = ({
           {time.toLocaleTimeString(locale, { timeStyle: 'short' })}
         </span>
       </header>
-      <span
+      <div
         className={cn(
-          'max-w-4/5 rounded-[20px]',
-          messageOrigin === 'local' ? 'bg-muted ml-auto p-2' : 'mr-auto'
+          'max-w-4/5 flex flex-col gap-2',
+          messageOrigin === 'local' ? 'ml-auto items-end' : 'mr-auto items-start'
         )}
       >
-        {message}
-      </span>
+        <span
+          className={cn(
+            'rounded-[20px] p-2',
+            messageOrigin === 'local' ? 'bg-muted' : ''
+          )}
+        >
+          {message}
+        </span>
+        {options && options.length > 0 && onOptionSelect && (
+          <ChatOptions
+            options={options}
+            onSelect={onOptionSelect}
+            messageOrigin={messageOrigin}
+          />
+        )}
+      </div>
     </li>
   );
 };
