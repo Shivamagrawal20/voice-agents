@@ -1,0 +1,15 @@
+[
+  {
+    "timestamp": "2025-11-26T15:20:46.096968Z",
+    "lead": {
+      "name": null,
+      "company": null,
+      "email": null,
+      "role": null,
+      "use_case": null,
+      "team_size": null,
+      "timeline": null
+    },
+    "summary": "The lead is a designer on a team of four, interested in automating welcome kit tasks for onboarding. They are looking to implement this now."
+  }
+]

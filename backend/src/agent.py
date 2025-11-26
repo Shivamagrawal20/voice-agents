@@ -1,5 +1,6 @@
 import json
 import logging
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -26,6 +27,8 @@ logger = logging.getLogger("agent")
 load_dotenv(".env.local")
 
 CONTENT_PATH = Path(__file__).resolve().parents[2] / "shared-data" / "day4_tutor_content.json"
+SDR_FAQ_PATH = Path(__file__).resolve().parents[2] / "shared-data" / "day5_sdr_faq.json"
+SDR_LEADS_PATH = Path(__file__).resolve().parents[2] / "shared-data" / "day5_sdr_leads.json"
 
 DEFAULT_CONTENT = [
     {
@@ -81,6 +84,225 @@ def build_catalog_text(concepts: List[Dict[str, str]]) -> str:
             f"- {concept['id']} ({concept['title']}): Summary -> {concept['summary']} | Prompt -> {concept['sample_question']}"
         )
     return "\n".join(lines)
+
+
+def load_sdr_faq_content() -> Dict:
+    """Load SDR FAQ and company info for the NammaFlow SDR agent."""
+    if SDR_FAQ_PATH.exists():
+        try:
+            with open(SDR_FAQ_PATH, "r", encoding="utf-8") as file:
+                data = json.load(file)
+                if isinstance(data, dict) and "faqs" in data:
+                    return data
+        except json.JSONDecodeError as exc:
+            logger.warning("Unable to parse SDR FAQ content at %s: %s", SDR_FAQ_PATH, exc)
+    logger.warning("SDR FAQ content missing or invalid, falling back to empty content.")
+    return {"company": {}, "faqs": []}
+
+
+class SalesSDRAgent(Agent):
+    """Voice SDR for NammaFlow – answers FAQs and captures lead details."""
+
+    def __init__(self) -> None:
+        self.sdr_content = load_sdr_faq_content()
+        self.company = self.sdr_content.get("company", {})
+        self.faqs: List[Dict[str, str]] = self.sdr_content.get("faqs", [])
+
+        # Lead fields we want to capture during the conversation
+        self.lead: Dict[str, Optional[str]] = {
+            "name": None,
+            "company": None,
+            "email": None,
+            "role": None,
+            "use_case": None,
+            "team_size": None,
+            "timeline": None,  # now / soon / later
+        }
+
+        # Last saved summary for this call
+        self.summary: Optional[str] = None
+
+        company_name = self.company.get("name", "our product")
+        company_tagline = self.company.get(
+            "tagline", "a simple workflow automation platform for Indian teams"
+        )
+
+        instructions = f"""
+You are a friendly Sales Development Representative (SDR) for NammaFlow, an Indian SaaS startup.
+
+COMPANY CONTEXT:
+- Name: {company_name}
+- Tagline: {company_tagline}
+- About: {self.company.get('about', '')}
+
+Your job is to:
+1) Warmly greet visitors and quickly understand what they are working on.
+2) Answer questions about what NammaFlow does, who it is for, and basic pricing using ONLY the FAQ content and tools.
+3) Naturally collect lead details and save them via the tools provided.
+4) When the caller is done, give a short verbal summary of the lead and save it.
+
+IMPORTANT BEHAVIOR:
+- Stay grounded in the provided FAQ data and tool results. If something is not in the FAQ, say you are not sure and offer to have the team follow up by email.
+- Do NOT invent specific prices or discounts beyond what the FAQ implies. You can mention that exact pricing is shared over email based on team size.
+- Keep answers clear and concise, optimized for audio.
+
+FAQ DATA:
+You have access to a tool that can search FAQs by keyword. Always call it when the user asks:
+- What does your product do?
+- Who is this for?
+- Do you have a free tier?
+- Pricing, plans, trial, integrations, team size, or use cases.
+If the tool returns entries, answer by paraphrasing those answers in your own words, while staying faithful to the content.
+
+LEAD CAPTURE:
+Over the course of the conversation, you should gently collect these fields (but not as a rigid form):
+- Name
+- Company
+- Email
+- Role
+- Use case (what they want to use NammaFlow for)
+- Team size
+- Timeline (now / soon / later)
+
+Ask these in a natural flow, typically after you have understood their high-level needs. Use the lead tool to update fields as you learn them.
+
+TOOLS YOU CAN USE:
+1) search_faq(query: str)
+   - Use this whenever the caller asks about product, fit, pricing, free tier, trial, or integrations.
+   - Returns the most relevant FAQ entries. You should base your answer primarily on these.
+
+2) update_lead(
+       name: Optional[str] = None,
+       company: Optional[str] = None,
+       email: Optional[str] = None,
+       role: Optional[str] = None,
+       use_case: Optional[str] = None,
+       team_size: Optional[str] = None,
+       timeline: Optional[str] = None,
+   )
+   - Call this whenever the caller shares one or more of these details.
+   - It is fine to call it multiple times as you learn more.
+
+3) save_lead_and_summary(summary: str)
+   - Call this when the caller indicates they are done, AFTER you have verbally summarized the lead.
+   - The summary should be 2–4 short sentences describing who they are, what they want, and rough timing.
+
+END OF CALL:
+- Treat phrases like "that's all", "I'm done", "that's it", or "thank you, this was helpful" as signals that the caller is ready to wrap up.
+- Before ending, recap key points:
+  - Who they are and their role
+  - What they want to use NammaFlow for
+  - Team size and timeline if known
+- After giving the spoken summary, call save_lead_and_summary with that same summary so it can be stored.
+
+STYLE:
+- Warm, concise, and consultative — like an SDR who understands Indian SaaS buyers.
+- Ask one clear question at a time.
+- Avoid technical jargon unless the user brings it up.
+- Never use emojis or special formatting.
+"""
+
+        super().__init__(instructions=instructions)
+        self._session: Optional[AgentSession] = None
+        self._room = None
+
+    def _search_faq_internal(self, query: str) -> List[Dict[str, str]]:
+        query_l = query.lower()
+        scored: List[Dict[str, object]] = []
+        for faq in self.faqs:
+            haystack = " ".join(
+                [
+                    faq.get("question", ""),
+                    faq.get("answer", ""),
+                    " ".join(faq.get("tags", [])),
+                ]
+            ).lower()
+            score = 0
+            for token in query_l.split():
+                if token and token in haystack:
+                    score += 1
+            if score > 0:
+                scored.append({"score": score, "faq": faq})
+
+        scored.sort(key=lambda x: x["score"], reverse=True)
+        return [item["faq"] for item in scored[:3]]
+
+    @function_tool
+    async def search_faq(self, context: RunContext, query: str):
+        """Search the NammaFlow FAQ by keyword and return the most relevant entries."""
+        if not query.strip():
+            return []
+        return self._search_faq_internal(query)
+
+    @function_tool
+    async def update_lead(
+        self,
+        context: RunContext,
+        name: Optional[str] = None,
+        company: Optional[str] = None,
+        email: Optional[str] = None,
+        role: Optional[str] = None,
+        use_case: Optional[str] = None,
+        team_size: Optional[str] = None,
+        timeline: Optional[str] = None,
+    ):
+        """Update one or more lead fields gathered during the conversation."""
+        updates = {
+            "name": name,
+            "company": company,
+            "email": email,
+            "role": role,
+            "use_case": use_case,
+            "team_size": team_size,
+            "timeline": timeline,
+        }
+        for key, value in updates.items():
+            if value is not None:
+                self.lead[key] = value
+
+        logger.info("Lead updated: %s", {k: v for k, v in self.lead.items() if v})
+        return self.lead
+
+    @function_tool
+    async def save_lead_and_summary(self, context: RunContext, summary: str):
+        """Persist the collected lead fields and a short summary to a JSON file."""
+        self.summary = summary.strip()
+        record = {
+            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "lead": self.lead,
+            "summary": self.summary,
+        }
+
+        existing: List[Dict] = []
+        if SDR_LEADS_PATH.exists():
+            try:
+                with open(SDR_LEADS_PATH, "r", encoding="utf-8") as file:
+                    data = json.load(file)
+                    if isinstance(data, list):
+                        existing = data
+            except json.JSONDecodeError as exc:
+                logger.warning(
+                    "Unable to read existing SDR leads at %s: %s", SDR_LEADS_PATH, exc
+                )
+
+        existing.append(record)
+        SDR_LEADS_PATH.parent.mkdir(parents=True, exist_ok=True)
+        with open(SDR_LEADS_PATH, "w", encoding="utf-8") as file:
+            json.dump(existing, file, indent=2, ensure_ascii=False)
+
+        logger.info("Saved SDR lead: %s", record)
+        return {"status": "saved", "count": len(existing)}
+
+    async def send_initial_greeting(self):
+        """Send the opening prompt once the audio pipeline is ready."""
+        if not self._session:
+            return
+        greeting = (
+            "Hi, this is the NammaFlow team. I'm a sales rep based in India, "
+            "and I'd love to learn a bit about you and your team. "
+            "What brought you here today, and what are you working on?"
+        )
+        await self._session.say(greeting, allow_interruptions=True)
 
 
 class TeachTheTutorCoach(Agent):
@@ -289,12 +511,12 @@ async def entrypoint(ctx: JobContext):
 
     ctx.add_shutdown_callback(log_usage)
 
-    tutor_agent = TeachTheTutorCoach()
-    tutor_agent._session = session
-    tutor_agent._room = ctx.room
+    sdr_agent = SalesSDRAgent()
+    sdr_agent._session = session
+    sdr_agent._room = ctx.room
 
     await session.start(
-        agent=tutor_agent,
+        agent=sdr_agent,
         room=ctx.room,
         room_input_options=RoomInputOptions(
             noise_cancellation=noise_cancellation.BVC(),
@@ -306,9 +528,10 @@ async def entrypoint(ctx: JobContext):
     import asyncio
 
     await asyncio.sleep(1.0)
-    await tutor_agent.send_initial_greeting()
+    await sdr_agent.send_initial_greeting()
 
 
 if __name__ == "__main__":
     cli.run_app(WorkerOptions(entrypoint_fnc=entrypoint, prewarm_fnc=prewarm))
+
 

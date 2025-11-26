@@ -1,0 +1,99 @@
+{
+  "company": {
+    "name": "NammaFlow",
+    "tagline": "Simple workflow automation for growing Indian teams",
+    "about": "NammaFlow is a Bangalore-based SaaS startup that helps Indian startups and SMEs automate repetitive business workflows like approvals, onboarding, and invoice tracking — without needing a developer.",
+    "headquarters": "Bengaluru, India",
+    "industry": "Software-as-a-Service (SaaS), Workflow Automation",
+    "ideal_customers": [
+      "Seed to Series C startups in India",
+      "SMEs with 20–500 employees",
+      "Operations, HR, and finance teams that still run on email + spreadsheets"
+    ]
+  },
+  "faqs": [
+    {
+      "id": "what-do-you-do",
+      "category": "product",
+      "question": "What does NammaFlow do?",
+      "answer": "NammaFlow is a workflow automation platform that lets Indian startups and SMEs turn their manual, repetitive processes into simple, trackable workflows. You can build approval flows, onboarding checklists, and recurring processes using a drag-and-drop builder instead of long email threads and spreadsheets.",
+      "tags": [
+        "what do you do",
+        "product",
+        "workflow automation",
+        "india",
+        "smb"
+      ]
+    },
+    {
+      "id": "who-is-this-for",
+      "category": "product",
+      "question": "Who is NammaFlow for?",
+      "answer": "NammaFlow is designed for growing Indian teams that have more work than people: founders, COOs, operations managers, HR teams, and finance teams. If your processes currently run on WhatsApp, email, or scattered Google Sheets, NammaFlow helps you centralize and automate them.",
+      "tags": [
+        "who is this for",
+        "target customers",
+        "founders",
+        "ops",
+        "hr",
+        "finance"
+      ]
+    },
+    {
+      "id": "how-it-works",
+      "category": "product",
+      "question": "How does NammaFlow work?",
+      "answer": "You start by picking a template or describing your process in plain language. NammaFlow converts that into a workflow with steps, owners, and due dates. Team members get notified on email or Slack when they need to take action, and you can track the status of every run from a single dashboard.",
+      "tags": ["how it works", "workflow builder", "templates", "automation"]
+    },
+    {
+      "id": "integrations",
+      "category": "product",
+      "question": "What tools does NammaFlow integrate with?",
+      "answer": "Today NammaFlow integrates with Gmail, Slack, Google Sheets, and basic webhooks. Many teams begin by using it as a lightweight layer on top of tools they already use, then gradually move more processes into NammaFlow as they scale.",
+      "tags": ["integrations", "gmail", "slack", "google sheets"]
+    },
+    {
+      "id": "free-tier",
+      "category": "pricing",
+      "question": "Do you have a free tier?",
+      "answer": "Yes. NammaFlow has a free Starter plan for up to 3 users and 2 active workflows. It is meant for small teams to try out workflow automation on a couple of core processes before upgrading.",
+      "tags": ["free tier", "free", "starter plan", "pricing"]
+    },
+    {
+      "id": "pricing-basics",
+      "category": "pricing",
+      "question": "What are your pricing plans?",
+      "answer": "NammaFlow offers three simple plans: Starter (free for up to 3 users and 2 workflows), Growth (for growing teams that want unlimited workflows and advanced approvals), and Scale (for larger organizations that need custom onboarding and security reviews). Exact per-user pricing can be shared over email based on your team size.",
+      "tags": ["pricing", "plans", "cost", "growth", "scale"]
+    },
+    {
+      "id": "free-trial",
+      "category": "pricing",
+      "question": "Is there a free trial?",
+      "answer": "Yes. New teams typically start on a 14-day free trial of the Growth plan, with full access to workflow templates and support. During the trial you can invite your teammates, set up a few workflows, and decide which plan makes sense.",
+      "tags": ["trial", "free trial", "evaluation"]
+    },
+    {
+      "id": "team-size",
+      "category": "fit",
+      "question": "What team size is NammaFlow best for?",
+      "answer": "Most NammaFlow customers have between 20 and 500 employees, but smaller and larger teams also use the product. The key signal is that you are starting to lose track of who is supposed to do what, and processes break when one person is on leave.",
+      "tags": ["team size", "fit", "ideal customer profile"]
+    },
+    {
+      "id": "use-cases",
+      "category": "fit",
+      "question": "What are the most common use cases?",
+      "answer": "Popular use cases include employee onboarding, vendor onboarding, marketing campaign approvals, reimbursement workflows, and internal change requests. Many customers start with one or two of these, then expand to other processes once they see the value.",
+      "tags": ["use cases", "onboarding", "approvals", "reimbursement"]
+    },
+    {
+      "id": "support",
+      "category": "other",
+      "question": "What kind of support do you offer?",
+      "answer": "All plans include email support and access to a template library. Growth and Scale plans include an onboarding specialist who helps you map out your first few workflows and train your team.",
+      "tags": ["support", "onboarding", "help"]
+    }
+  ]
+}
