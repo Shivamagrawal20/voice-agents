@@ -1,6 +1,6 @@
 import json
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -26,449 +26,227 @@ logger = logging.getLogger("agent")
 
 load_dotenv(".env.local")
 
-CONTENT_PATH = Path(__file__).resolve().parents[2] / "shared-data" / "day4_tutor_content.json"
-SDR_FAQ_PATH = Path(__file__).resolve().parents[2] / "shared-data" / "day5_sdr_faq.json"
-SDR_LEADS_PATH = Path(__file__).resolve().parents[2] / "shared-data" / "day5_sdr_leads.json"
-
-DEFAULT_CONTENT = [
-    {
-        "id": "variables",
-        "title": "Variables",
-        "summary": "Variables store values so you can reuse them later. They act like labeled boxes so your program can retrieve or change the value whenever needed.",
-        "sample_question": "What is a variable and why is it useful?",
-    },
-    {
-        "id": "loops",
-        "title": "Loops",
-        "summary": "Loops let you repeat an action multiple times without rewriting code. They are great for iterating over lists or repeating a task until a condition changes.",
-        "sample_question": "Explain the difference between a for loop and a while loop.",
-    },
-    {
-        "id": "functions",
-        "title": "Functions",
-        "summary": "Functions group reusable logic under a single name. They accept inputs, perform work, and optionally return a value so you can keep code organized.",
-        "sample_question": "Why would you wrap code in a function instead of leaving it inline?",
-    },
-]
-
-MODE_PROFILES = {
-    "learn": {"voice": "en-US-matthew", "display_name": "Matthew"},
-    "quiz": {"voice": "en-US-alicia", "display_name": "Alicia"},
-    "teach_back": {"voice": "en-US-ken", "display_name": "Ken"},
-}
-
-MODE_ACTIVITY_FIELDS = {
-    "learn": "times_explained",
-    "quiz": "times_quizzed",
-    "teach_back": "times_taught_back",
-}
+FRAUD_CASES_PATH = (
+    Path(__file__).resolve().parents[2] / "shared-data" / "day6_fraud_cases.json"
+)
+MAX_VERIFICATION_ATTEMPTS = 2
+VALID_FINAL_STATUSES = {"confirmed_safe", "confirmed_fraud", "verification_failed"}
 
 
-def load_tutor_content() -> List[Dict[str, str]]:
-    if CONTENT_PATH.exists():
+def _load_cases() -> List[Dict]:
+    if FRAUD_CASES_PATH.exists():
         try:
-            with open(CONTENT_PATH, "r", encoding="utf-8") as file:
+            with open(FRAUD_CASES_PATH, "r", encoding="utf-8") as file:
                 data = json.load(file)
-                if isinstance(data, list) and data:
+                if isinstance(data, list):
                     return data
         except json.JSONDecodeError as exc:
-            logger.warning("Unable to parse tutor content at %s: %s", CONTENT_PATH, exc)
-    logger.info("Falling back to default tutor content.")
-    return DEFAULT_CONTENT
+            logger.warning("Unable to parse fraud cases at %s: %s", FRAUD_CASES_PATH, exc)
+    return []
 
 
-def build_catalog_text(concepts: List[Dict[str, str]]) -> str:
-    lines = []
-    for concept in concepts:
-        lines.append(
-            f"- {concept['id']} ({concept['title']}): Summary -> {concept['summary']} | Prompt -> {concept['sample_question']}"
-        )
-    return "\n".join(lines)
+def _save_cases(cases: List[Dict]) -> None:
+    FRAUD_CASES_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with open(FRAUD_CASES_PATH, "w", encoding="utf-8") as file:
+        json.dump(cases, file, indent=2, ensure_ascii=False)
 
 
-def load_sdr_faq_content() -> Dict:
-    """Load SDR FAQ and company info for the NammaFlow SDR agent."""
-    if SDR_FAQ_PATH.exists():
-        try:
-            with open(SDR_FAQ_PATH, "r", encoding="utf-8") as file:
-                data = json.load(file)
-                if isinstance(data, dict) and "faqs" in data:
-                    return data
-        except json.JSONDecodeError as exc:
-            logger.warning("Unable to parse SDR FAQ content at %s: %s", SDR_FAQ_PATH, exc)
-    logger.warning("SDR FAQ content missing or invalid, falling back to empty content.")
-    return {"company": {}, "faqs": []}
+def _normalize(text: str) -> str:
+    return text.strip().lower()
 
 
-class SalesSDRAgent(Agent):
-    """Voice SDR for NammaFlow – answers FAQs and captures lead details."""
+def _mask_case(case: Dict) -> Dict:
+    return {
+        "caseId": case.get("caseId"),
+        "userName": case.get("userName"),
+        "securityIdentifier": case.get("securityIdentifier"),
+        "securityQuestion": case.get("securityQuestion"),
+        "cardMask": case.get("cardMask"),
+        "transactionAmount": case.get("transactionAmount"),
+        "currency": case.get("currency", "USD"),
+        "transactionName": case.get("transactionName"),
+        "transactionCategory": case.get("transactionCategory"),
+        "transactionSource": case.get("transactionSource"),
+        "location": case.get("location"),
+        "transactionTime": case.get("transactionTime"),
+        "channel": case.get("channel"),
+        "status": case.get("status", "pending_review"),
+        "outcomeNote": case.get("outcomeNote", ""),
+    }
 
-    def __init__(self) -> None:
-        self.sdr_content = load_sdr_faq_content()
-        self.company = self.sdr_content.get("company", {})
-        self.faqs: List[Dict[str, str]] = self.sdr_content.get("faqs", [])
 
-        # Lead fields we want to capture during the conversation
-        self.lead: Dict[str, Optional[str]] = {
-            "name": None,
-            "company": None,
-            "email": None,
-            "role": None,
-            "use_case": None,
-            "team_size": None,
-            "timeline": None,  # now / soon / later
-        }
+def _find_case_by_username(user_name: str) -> Optional[Dict]:
+    normalized = _normalize(user_name)
+    for case in _load_cases():
+        if _normalize(case.get("userName", "")) == normalized:
+            return case
+    return None
 
-        # Last saved summary for this call
-        self.summary: Optional[str] = None
 
-        company_name = self.company.get("name", "our product")
-        company_tagline = self.company.get(
-            "tagline", "a simple workflow automation platform for Indian teams"
-        )
+class FraudAlertAgent(Agent):
+    """Fraud alert representative that audits a single case per call."""
+
+    def __init__(self, bank_name: str = "Falcon National Bank") -> None:
+        self.bank_name = bank_name
+        self.active_case: Optional[Dict] = None
+        self.is_verified = False
+        self.verification_attempts = 0
 
         instructions = f"""
-You are a friendly Sales Development Representative (SDR) for NammaFlow, an Indian SaaS startup.
+You are Ava, a calm fraud prevention specialist for {self.bank_name}. Calls are demo-only, so keep language professional, reassuring, and brief.
 
-COMPANY CONTEXT:
-- Name: {company_name}
-- Tagline: {company_tagline}
-- About: {self.company.get('about', '')}
+CALL FLOW YOU MUST FOLLOW:
+1. INTRO: Immediately introduce yourself as the {self.bank_name} fraud department calling about a suspicious card transaction and ask for the customer's preferred first name.
+2. CASE LOOKUP: After the caller gives a name, call load_fraud_case(user_name). If no case is found, explain that nothing is pending and end politely.
+3. SECURITY: When you have a case, read the provided security question word-for-word. Never share the stored answer. After the caller responds, call verify_security_answer(answer). If it returns verified=false, kindly let them know how many attempts remain (max {MAX_VERIFICATION_ATTEMPTS}) and re-ask. If they fail all attempts, stop and call update_case_status(status="verification_failed", note=...).
+4. BRIEFING: Once verified, recap the suspicious charge. Mention the merchant, amount with currency, masked card, timestamp, location, and channel from the tool output. Remind them you will not ask for full card numbers, PINs, or passwords.
+5. DECISION: Ask if they recognize the charge. A "yes" means the transaction is safe; a "no" (or uncertainty) means it is fraudulent. Keep them focused on a direct answer.
+6. PERSISTENCE: Always call update_case_status once the disposition is known:
+   - confirmed_safe + note describing their confirmation.
+   - confirmed_fraud + note describing next steps (e.g., card blocked, dispute raised).
+   - verification_failed when identity could not be verified.
+7. WRAP-UP: Verbally summarize the outcome, next actions, and thank them before ending the call.
 
-Your job is to:
-1) Warmly greet visitors and quickly understand what they are working on.
-2) Answer questions about what NammaFlow does, who it is for, and basic pricing using ONLY the FAQ content and tools.
-3) Naturally collect lead details and save them via the tools provided.
-4) When the caller is done, give a short verbal summary of the lead and save it.
+TOOLS AVAILABLE:
+- load_fraud_case(user_name:str) -> loads the pending case for that customer. Only proceed with the information returned by this tool.
+- verify_security_answer(answer:str) -> validates the caller's response. Never guess or announce the stored answer; rely on this tool's boolean.
+- update_case_status(status:str, note:str) -> persists the final state back to the database. Status must be one of confirmed_safe, confirmed_fraud, or verification_failed.
 
-IMPORTANT BEHAVIOR:
-- Stay grounded in the provided FAQ data and tool results. If something is not in the FAQ, say you are not sure and offer to have the team follow up by email.
-- Do NOT invent specific prices or discounts beyond what the FAQ implies. You can mention that exact pricing is shared over email based on team size.
-- Keep answers clear and concise, optimized for audio.
-
-FAQ DATA:
-You have access to a tool that can search FAQs by keyword. Always call it when the user asks:
-- What does your product do?
-- Who is this for?
-- Do you have a free tier?
-- Pricing, plans, trial, integrations, team size, or use cases.
-If the tool returns entries, answer by paraphrasing those answers in your own words, while staying faithful to the content.
-
-LEAD CAPTURE:
-Over the course of the conversation, you should gently collect these fields (but not as a rigid form):
-- Name
-- Company
-- Email
-- Role
-- Use case (what they want to use NammaFlow for)
-- Team size
-- Timeline (now / soon / later)
-
-Ask these in a natural flow, typically after you have understood their high-level needs. Use the lead tool to update fields as you learn them.
-
-TOOLS YOU CAN USE:
-1) search_faq(query: str)
-   - Use this whenever the caller asks about product, fit, pricing, free tier, trial, or integrations.
-   - Returns the most relevant FAQ entries. You should base your answer primarily on these.
-
-2) update_lead(
-       name: Optional[str] = None,
-       company: Optional[str] = None,
-       email: Optional[str] = None,
-       role: Optional[str] = None,
-       use_case: Optional[str] = None,
-       team_size: Optional[str] = None,
-       timeline: Optional[str] = None,
-   )
-   - Call this whenever the caller shares one or more of these details.
-   - It is fine to call it multiple times as you learn more.
-
-3) save_lead_and_summary(summary: str)
-   - Call this when the caller indicates they are done, AFTER you have verbally summarized the lead.
-   - The summary should be 2–4 short sentences describing who they are, what they want, and rough timing.
-
-END OF CALL:
-- Treat phrases like "that's all", "I'm done", "that's it", or "thank you, this was helpful" as signals that the caller is ready to wrap up.
-- Before ending, recap key points:
-  - Who they are and their role
-  - What they want to use NammaFlow for
-  - Team size and timeline if known
-- After giving the spoken summary, call save_lead_and_summary with that same summary so it can be stored.
-
-STYLE:
-- Warm, concise, and consultative — like an SDR who understands Indian SaaS buyers.
-- Ask one clear question at a time.
-- Avoid technical jargon unless the user brings it up.
-- Never use emojis or special formatting.
+BEHAVIORAL GUARDRAILS:
+- Never request full PAN, CVV, PIN, passwords, OTPs, or any sensitive secret beyond the provided security question.
+- Stay empathetic, avoid alarming language, and speak in concise statements suitable for audio.
+- If the caller digresses, gently bring the conversation back to resolving the fraud alert.
+- If the caller confirms multiple attempts or new suspicious activity, document that in your note but still complete the single provided case.
+- If the caller asks about data sources, clarify that this is a sandbox demo using fake accounts.
 """
 
         super().__init__(instructions=instructions)
         self._session: Optional[AgentSession] = None
         self._room = None
 
-    def _search_faq_internal(self, query: str) -> List[Dict[str, str]]:
-        query_l = query.lower()
-        scored: List[Dict[str, object]] = []
-        for faq in self.faqs:
-            haystack = " ".join(
-                [
-                    faq.get("question", ""),
-                    faq.get("answer", ""),
-                    " ".join(faq.get("tags", [])),
-                ]
-            ).lower()
-            score = 0
-            for token in query_l.split():
-                if token and token in haystack:
-                    score += 1
-            if score > 0:
-                scored.append({"score": score, "faq": faq})
-
-        scored.sort(key=lambda x: x["score"], reverse=True)
-        return [item["faq"] for item in scored[:3]]
+    def _ensure_active_case(self) -> Dict:
+        if not self.active_case:
+            raise ValueError("No fraud case loaded.")
+        return self.active_case
 
     @function_tool
-    async def search_faq(self, context: RunContext, query: str):
-        """Search the NammaFlow FAQ by keyword and return the most relevant entries."""
-        if not query.strip():
-            return []
-        return self._search_faq_internal(query)
+    async def load_fraud_case(self, context: RunContext, user_name: str):
+        """Load a fraud case for the provided customer name."""
+        if not user_name.strip():
+            return {"status": "error", "message": "Customer name is required."}
 
-    @function_tool
-    async def update_lead(
-        self,
-        context: RunContext,
-        name: Optional[str] = None,
-        company: Optional[str] = None,
-        email: Optional[str] = None,
-        role: Optional[str] = None,
-        use_case: Optional[str] = None,
-        team_size: Optional[str] = None,
-        timeline: Optional[str] = None,
-    ):
-        """Update one or more lead fields gathered during the conversation."""
-        updates = {
-            "name": name,
-            "company": company,
-            "email": email,
-            "role": role,
-            "use_case": use_case,
-            "team_size": team_size,
-            "timeline": timeline,
-        }
-        for key, value in updates.items():
-            if value is not None:
-                self.lead[key] = value
+        case = _find_case_by_username(user_name)
+        if not case:
+            logger.info("No fraud case found for user=%s", user_name)
+            self.active_case = None
+            self.is_verified = False
+            self.verification_attempts = 0
+            return {"status": "not_found"}
 
-        logger.info("Lead updated: %s", {k: v for k, v in self.lead.items() if v})
-        return self.lead
-
-    @function_tool
-    async def save_lead_and_summary(self, context: RunContext, summary: str):
-        """Persist the collected lead fields and a short summary to a JSON file."""
-        self.summary = summary.strip()
-        record = {
-            "timestamp": datetime.utcnow().isoformat() + "Z",
-            "lead": self.lead,
-            "summary": self.summary,
-        }
-
-        existing: List[Dict] = []
-        if SDR_LEADS_PATH.exists():
-            try:
-                with open(SDR_LEADS_PATH, "r", encoding="utf-8") as file:
-                    data = json.load(file)
-                    if isinstance(data, list):
-                        existing = data
-            except json.JSONDecodeError as exc:
-                logger.warning(
-                    "Unable to read existing SDR leads at %s: %s", SDR_LEADS_PATH, exc
-                )
-
-        existing.append(record)
-        SDR_LEADS_PATH.parent.mkdir(parents=True, exist_ok=True)
-        with open(SDR_LEADS_PATH, "w", encoding="utf-8") as file:
-            json.dump(existing, file, indent=2, ensure_ascii=False)
-
-        logger.info("Saved SDR lead: %s", record)
-        return {"status": "saved", "count": len(existing)}
-
-    async def send_initial_greeting(self):
-        """Send the opening prompt once the audio pipeline is ready."""
-        if not self._session:
-            return
-        greeting = (
-            "Hi, this is the NammaFlow team. I'm a sales rep based in India, "
-            "and I'd love to learn a bit about you and your team. "
-            "What brought you here today, and what are you working on?"
-        )
-        await self._session.say(greeting, allow_interruptions=True)
-
-
-class TeachTheTutorCoach(Agent):
-    def __init__(self, content: Optional[List[Dict[str, str]]] = None) -> None:
-        self.content = content or load_tutor_content()
-        self.concepts_by_id = {concept["id"]: concept for concept in self.content}
-        default_concept_id = self.content[0]["id"]
-        self.session_state: Dict[str, Dict] = {
-            "current_mode": None,
-            "current_concept": default_concept_id,
-            "mastery": {
-                concept_id: {
-                    "times_explained": 0,
-                    "times_quizzed": 0,
-                    "times_taught_back": 0,
-                    "last_score": None,
-                    "avg_score": 0.0,
-                    "feedback": "",
-                }
-                for concept_id in self.concepts_by_id
-            },
-        }
-
-        instructions = f"""
-You are Teach-the-Tutor, an active recall coach. You help learners cycle through three lightweight modes that keep them engaged and talking:
-
-LEARNING MODES (always invite the user to choose one and allow switching at any moment by calling the tools provided):
-- learn (voice: Murf Falcon Matthew): deliver a concise explanation that references the concept summary and highlights 1 actionable example.
-- quiz (voice: Murf Falcon Alicia): ask 1-2 questions based on the sample question, confirm/clarify the user's response, and note follow-up tips.
-- teach_back (voice: Murf Falcon Ken): prompt the user to explain the concept back, listen, then provide qualitative feedback and a 0-100 confidence estimate.
-
-CONTENT LIBRARY (always ground your responses in this data, do not invent new summaries or prompts):
-{build_catalog_text(self.content)}
-
-TOOLS YOU MUST USE:
-1. switch_mode(mode:str) -> sets the learning mode and routes audio through the correct Murf Falcon voice. Call this right after the user picks a mode or asks to switch.
-2. set_active_concept(concept_id:str) -> pick which concept we're focusing on. Use it when the user requests a new topic or after cycling through one concept.
-3. record_teach_back_feedback(concept_id:str, score:int, feedback:str) -> after giving teach-back feedback, log the user's mastery details so you can reference them later.
-4. get_state_snapshot() -> view current mode, concept, and per-concept mastery. Use it whenever you need to recall progress or recommend the next step.
-5. list_concepts() -> quick refresher on available concepts if the user asks "what can we cover?".
-
-CONVERSATION FLOW:
-1. Greet the user, explain the three modes, and ask where they'd like to start. Wait for their choice before deep-diving.
-2. After every mode request, call switch_mode so voice + tone match the mode.
-3. Use set_active_concept before delivering content so you're always synced with the user’s choice.
-4. Keep responses focused on the selected mode:
-   - learn: rely on the summary, add one motivating example, and invite the user to try quiz or teach-back next.
-   - quiz: start with the sample question, evaluate their answer, and optionally add one follow-up question for clarity.
-   - teach_back: prompt them to explain, listen, summarize their strengths/gaps, then call record_teach_back_feedback with a 0-100 score and 1-2 sentence feedback.
-5. Encourage switching modes anytime ("Want to quiz yourself on loops instead?").
-6. When unsure what to cover next, call get_state_snapshot and suggest the concept with the lowest mastery or that hasn't been visited.
-
-STYLE:
-- Friendly, coach-like, concise sentences suited for audio.
-- Use positive reinforcement but stay honest.
-- Do not use emojis or special formatting.
-"""
-
-        super().__init__(instructions=instructions)
-        self._session: Optional[AgentSession] = None
-        self._room = None
-
-    def _apply_voice(self, mode: str) -> None:
-        profile = MODE_PROFILES.get(mode)
-        if not profile or not self._session:
-            return
-        voice = profile["voice"]
-        try:
-            if hasattr(self._session, "tts"):
-                self._session.tts.voice = voice
-        except AttributeError:
-            logger.warning("Unable to update TTS voice to %s", voice)
-
-    def _ensure_concept(self, concept_id: Optional[str]) -> Dict[str, str]:
-        concept = self.concepts_by_id.get(concept_id or "")
-        if concept:
-            return concept
-        fallback = self.concepts_by_id[self.session_state["current_concept"]]
-        return fallback
-
-    def _increment_mastery(self, mode: str, concept_id: str) -> None:
-        field = MODE_ACTIVITY_FIELDS.get(mode)
-        if not field:
-            return
-        mastery = self.session_state["mastery"][concept_id]
-        mastery[field] += 1
-
-    @function_tool
-    async def list_concepts(self, context: RunContext):
-        """Return the available concepts for quick reference."""
-        return self.content
-
-    @function_tool
-    async def set_active_concept(self, context: RunContext, concept_id: str):
-        """Select the concept (by id) that the conversation should focus on."""
-        if concept_id not in self.concepts_by_id:
-            return {
-                "error": f"{concept_id} is not in the content library.",
-                "available_ids": list(self.concepts_by_id.keys()),
-            }
-        self.session_state["current_concept"] = concept_id
-        concept = self.concepts_by_id[concept_id]
-        logger.info("Active concept set to %s", concept_id)
-        return concept
-
-    @function_tool
-    async def switch_mode(self, context: RunContext, mode: str):
-        """Change between learn, quiz, and teach_back modes and activate the matching Murf voice."""
-        if mode not in MODE_PROFILES:
-            return {
-                "error": f"{mode} is invalid. Choose from: {', '.join(MODE_PROFILES.keys())}."
-            }
-        self.session_state["current_mode"] = mode
-        active_concept = self.session_state["current_concept"]
-        self._apply_voice(mode)
-        self._increment_mastery(mode, active_concept)
-        voice_name = MODE_PROFILES[mode]["display_name"]
-        logger.info("Switched to %s mode with voice %s", mode, voice_name)
-        return {
-            "mode": mode,
-            "voice": voice_name,
-            "concept": self.concepts_by_id[active_concept],
-        }
-
-    @function_tool
-    async def get_state_snapshot(self, context: RunContext):
-        """Return the internal tutor state including mastery counters per concept."""
-        return self.session_state
-
-    @function_tool
-    async def record_teach_back_feedback(
-        self, context: RunContext, concept_id: Optional[str], score: int, feedback: str
-    ):
-        """Store teach-back feedback so future coaching can reference mastery."""
-        concept = self._ensure_concept(concept_id)
-        mastery = self.session_state["mastery"][concept["id"]]
-        bounded = max(0, min(100, score))
-        prev_avg = mastery["avg_score"]
-        total_attempts = max(1, mastery["times_taught_back"])
-        mastery["avg_score"] = round(
-            ((prev_avg * (total_attempts - 1)) + bounded) / total_attempts, 1
-        )
-        mastery["last_score"] = bounded
-        mastery["feedback"] = feedback
+        self.active_case = case
+        self.is_verified = False
+        self.verification_attempts = 0
         logger.info(
-            "Teach-back feedback recorded for %s -> score=%s, feedback=%s",
-            concept["id"],
-            bounded,
-            feedback,
+            "Loaded fraud case %s for user=%s", case.get("caseId"), case.get("userName")
+        )
+        return {"status": "loaded", "case": _mask_case(case)}
+
+    @function_tool
+    async def verify_security_answer(self, context: RunContext, answer: str):
+        """Validate the caller's response to the stored security question."""
+        try:
+            case = self._ensure_active_case()
+        except ValueError as exc:
+            return {"status": "error", "message": str(exc)}
+
+        if not answer.strip():
+            return {"status": "error", "message": "An answer is required to verify identity."}
+
+        self.verification_attempts += 1
+        expected = _normalize(case.get("securityAnswer", ""))
+        provided = _normalize(answer)
+        is_match = bool(expected) and provided == expected
+
+        if is_match:
+            self.is_verified = True
+            logger.info(
+                "Security verification succeeded for case %s", case.get("caseId")
+            )
+            return {
+                "status": "verified",
+                "verified": True,
+                "attempts_used": self.verification_attempts,
+                "attempts_left": max(0, MAX_VERIFICATION_ATTEMPTS - self.verification_attempts),
+            }
+
+        remaining = max(0, MAX_VERIFICATION_ATTEMPTS - self.verification_attempts)
+        self.is_verified = False
+        logger.info(
+            "Security verification failed for case %s (remaining=%s)",
+            case.get("caseId"),
+            remaining,
         )
         return {
-            "concept": concept,
-            "last_score": mastery["last_score"],
-            "avg_score": mastery["avg_score"],
-            "feedback": mastery["feedback"],
+            "status": "not_verified",
+            "verified": False,
+            "attempts_used": self.verification_attempts,
+            "attempts_left": remaining,
+        }
+
+    @function_tool
+    async def update_case_status(self, context: RunContext, status: str, note: str):
+        """Persist the final outcome of the fraud review."""
+        try:
+            case = self._ensure_active_case()
+        except ValueError as exc:
+            return {"status": "error", "message": str(exc)}
+
+        normalized_status = status.strip().lower()
+        if normalized_status not in VALID_FINAL_STATUSES:
+            return {
+                "status": "error",
+                "message": f"Status must be one of {', '.join(sorted(VALID_FINAL_STATUSES))}.",
+            }
+
+        if not note.strip():
+            return {"status": "error", "message": "An outcome note is required."}
+
+        cases = _load_cases()
+        updated_case = None
+        for record in cases:
+            if record.get("caseId") == case.get("caseId"):
+                record["status"] = normalized_status
+                record["outcomeNote"] = note.strip()
+                record["updatedAt"] = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+                updated_case = record
+                break
+
+        if not updated_case:
+            return {
+                "status": "error",
+                "message": f"Could not locate case {case.get('caseId')} for update.",
+            }
+
+        _save_cases(cases)
+        self.active_case = updated_case
+        logger.info(
+            "Updated fraud case %s -> status=%s",
+            updated_case.get("caseId"),
+            normalized_status,
+        )
+        return {
+            "status": "updated",
+            "case": _mask_case(updated_case),
         }
 
     async def send_initial_greeting(self):
-        """Send the opening prompt once the audio pipeline is ready."""
+        """Send the opening fraud-alert greeting when audio is ready."""
         if not self._session:
             return
-        self._apply_voice("learn")
         greeting = (
-            "Hey there! I'm your Teach-the-Tutor coach. "
-            "We can learn, quiz, or teach-back concepts like variables, loops, or functions. "
-            "Which mode would you like to start with?"
+            f"Hello, this is Ava with {self.bank_name}'s fraud protection team. "
+            "I'm calling about a suspicious charge on your card. "
+            "Could I please confirm the name you use on the account before we continue?"
         )
         await self._session.say(greeting, allow_interruptions=True)
 
@@ -484,9 +262,7 @@ async def entrypoint(ctx: JobContext):
 
     session = AgentSession(
         stt=deepgram.STT(model="nova-3"),
-        llm=google.LLM(
-                model="gemini-2.5-flash",
-            ),
+        llm=google.LLM(model="gemini-2.5-flash"),
         tts=murf.TTS(
                 voice="en-US-matthew", 
                 style="Conversation",
@@ -511,12 +287,12 @@ async def entrypoint(ctx: JobContext):
 
     ctx.add_shutdown_callback(log_usage)
 
-    sdr_agent = SalesSDRAgent()
-    sdr_agent._session = session
-    sdr_agent._room = ctx.room
+    fraud_agent = FraudAlertAgent()
+    fraud_agent._session = session
+    fraud_agent._room = ctx.room
 
     await session.start(
-        agent=sdr_agent,
+        agent=fraud_agent,
         room=ctx.room,
         room_input_options=RoomInputOptions(
             noise_cancellation=noise_cancellation.BVC(),
@@ -528,7 +304,7 @@ async def entrypoint(ctx: JobContext):
     import asyncio
 
     await asyncio.sleep(1.0)
-    await sdr_agent.send_initial_greeting()
+    await fraud_agent.send_initial_greeting()
 
 
 if __name__ == "__main__":

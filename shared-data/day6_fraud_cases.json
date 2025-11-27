@@ -1,0 +1,42 @@
+[
+  {
+    "caseId": "FALCON-20241127-001",
+    "userName": "John",
+    "securityIdentifier": "12345",
+    "securityQuestion": "What is the name of your first school?",
+    "securityAnswer": "greenwood elementary",
+    "cardMask": "**** 4242",
+    "transactionAmount": 189.75,
+    "currency": "USD",
+    "transactionName": "ABC Industrial Supplies",
+    "transactionCategory": "e-commerce",
+    "transactionSource": "alibaba.com",
+    "location": "Shenzhen, China",
+    "transactionTime": "2025-11-26T04:12:00Z",
+    "channel": "online",
+    "status": "confirmed_fraud",
+    "outcomeNote": "Customer does not recognize the charge. Card will be blocked and a dispute raised.",
+    "createdAt": "2025-11-26T04:20:00Z",
+    "updatedAt": "2025-11-27T15:41:26.592390Z"
+  },
+  {
+    "caseId": "FALCON-20241127-002",
+    "userName": "Priya",
+    "securityIdentifier": "88321",
+    "securityQuestion": "What city did you meet your spouse in?",
+    "securityAnswer": "pune",
+    "cardMask": "**** 9012",
+    "transactionAmount": 942.1,
+    "currency": "USD",
+    "transactionName": "SkyLux Travel Desk",
+    "transactionCategory": "travel",
+    "transactionSource": "skylux-travel.example",
+    "location": "Miami, USA",
+    "transactionTime": "2025-11-25T18:55:00Z",
+    "channel": "phone",
+    "status": "pending_review",
+    "outcomeNote": "",
+    "createdAt": "2025-11-25T19:05:00Z",
+    "updatedAt": "2025-11-25T19:05:00Z"
+  }
+]

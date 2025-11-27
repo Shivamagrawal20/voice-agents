@@ -20,9 +20,10 @@ export interface AppConfig {
 }
 
 export const APP_CONFIG_DEFAULTS: AppConfig = {
-  companyName: 'HealthifyMe',
-  pageTitle: 'HealthifyMe Wellness Companion - Daily Check-In',
-  pageDescription: 'Your AI-powered daily wellness check-in companion. Track your mood, energy, and goals with personalized support.',
+  companyName: 'Falcon National Bank',
+  pageTitle: 'Falcon National Fraud Alert Desk',
+  pageDescription:
+    'Connect with Falcon National’s automated fraud specialist to review suspicious transactions in a safe sandbox demo.',
 
   supportsChatInput: true,
   supportsVideoInput: true,
@@ -30,10 +31,10 @@ export const APP_CONFIG_DEFAULTS: AppConfig = {
   isPreConnectBufferEnabled: true,
 
   logo: '/lk-logo.svg',
-  accent: '#00C853', // HealthifyMe-inspired wellness green
+  accent: '#0047AB',
   logoDark: '/lk-logo-dark.svg',
-  accentDark: '#4CAF50',
-  startButtonText: 'Start Wellness Check-In',
+  accentDark: '#012A5B',
+  startButtonText: 'Start Fraud Review',
 
   // for LiveKit Cloud Sandbox
   sandboxId: undefined,
