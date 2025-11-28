@@ -91,7 +91,33 @@ export const SessionView = ({
   }, [messages]);
 
   return (
-    <section className="bg-background relative z-10 h-full w-full overflow-hidden" {...props}>
+    <section className="relative z-10 h-full w-full overflow-hidden" {...props}>
+      <div className="pointer-events-none absolute inset-x-0 top-6 z-10 flex justify-center px-4 md:top-8">
+        <div className="w-full max-w-2xl rounded-3xl border border-white/10 bg-card/70 p-5 text-left text-white backdrop-blur-3xl">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-[0.65rem] uppercase tracking-[0.45em] text-primary/80">
+                Falcon Pantry
+              </p>
+              <p className="text-2xl font-semibold text-white">Voice aisle is open</p>
+              <p className="text-xs text-white/70">
+                Ask for ingredient bundles, swap items, or track your latest delivery.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2 text-xs text-white/80">
+              <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">
+                ETA 35 min
+              </span>
+              <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">
+                Recipe kits ready
+              </span>
+              <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">
+                Order ID pending
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
       {/* Chat Transcript */}
       <div
         className={cn(
@@ -120,7 +146,7 @@ export const SessionView = ({
         {appConfig.isPreConnectBufferEnabled && (
           <PreConnectMessage messages={messages} className="pb-4" />
         )}
-        <div className="bg-background relative mx-auto max-w-2xl pb-3 md:pb-12">
+        <div className="bg-card/80 relative mx-auto max-w-2xl rounded-t-3xl border border-white/10 pb-3 shadow-[0_-20px_60px_rgba(0,0,0,0.45)] backdrop-blur-2xl md:pb-12">
           <Fade bottom className="absolute inset-x-0 top-0 h-4 -translate-y-full" />
           <AgentControlBar controls={controls} onChatOpenChange={setChatOpen} />
         </div>
