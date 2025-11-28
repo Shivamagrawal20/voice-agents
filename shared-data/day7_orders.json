@@ -1,0 +1,39 @@
+[
+  {
+    "orderId": "ORD-FB5E6D6B",
+    "placedAt": "2025-11-28T15:17:54.302625Z",
+    "status": "received",
+    "customer": {
+      "name": "John",
+      "fulfillment": "delivery",
+      "notes": ""
+    },
+    "items": [
+      {
+        "itemId": "whole_wheat_bread",
+        "name": "Whole Wheat Sandwich Bread",
+        "quantity": 1.0,
+        "unitPrice": 4.0,
+        "subtotal": 4.0,
+        "note": ""
+      },
+      {
+        "itemId": "organic_milk",
+        "name": "Organic 2% Milk",
+        "quantity": 1.0,
+        "unitPrice": 5.25,
+        "subtotal": 5.25,
+        "note": ""
+      },
+      {
+        "itemId": "salted_butter",
+        "name": "Salted Butter Sticks",
+        "quantity": 1.0,
+        "unitPrice": 3.95,
+        "subtotal": 3.95,
+        "note": ""
+      }
+    ],
+    "total": 13.2
+  }
+]

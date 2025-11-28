@@ -1,0 +1,164 @@
+[
+  {
+    "id": "whole_wheat_bread",
+    "name": "Whole Wheat Sandwich Bread",
+    "category": "Groceries",
+    "price": 4.0,
+    "unit": "loaf",
+    "brand": "Harvest Lane",
+    "size": "24 oz",
+    "tags": ["bread", "fiber", "vegetarian"]
+  },
+  {
+    "id": "free_range_eggs",
+    "name": "Free-Range Eggs",
+    "category": "Groceries",
+    "price": 4.75,
+    "unit": "dozen",
+    "brand": "Sunrise Farms",
+    "size": "12 count",
+    "tags": ["breakfast", "protein", "vegetarian"]
+  },
+  {
+    "id": "organic_milk",
+    "name": "Organic 2% Milk",
+    "category": "Groceries",
+    "price": 5.25,
+    "unit": "half gallon",
+    "brand": "Valley Creamery",
+    "size": "64 fl oz",
+    "tags": ["dairy", "breakfast"]
+  },
+  {
+    "id": "salted_butter",
+    "name": "Salted Butter Sticks",
+    "category": "Groceries",
+    "price": 3.95,
+    "unit": "pack",
+    "brand": "Golden Churn",
+    "size": "4 x 4 oz",
+    "tags": ["dairy", "baking"]
+  },
+  {
+    "id": "peanut_butter",
+    "name": "Creamy Peanut Butter",
+    "category": "Pantry",
+    "price": 6.5,
+    "unit": "jar",
+    "brand": "North Coast",
+    "size": "16 oz",
+    "tags": ["protein", "snack"]
+  },
+  {
+    "id": "strawberry_jam",
+    "name": "Strawberry Preserves",
+    "category": "Pantry",
+    "price": 4.8,
+    "unit": "jar",
+    "brand": "Field Berry",
+    "size": "14 oz",
+    "tags": ["breakfast", "dessert", "vegetarian"]
+  },
+  {
+    "id": "spaghetti_pasta",
+    "name": "Bronze-Cut Spaghetti",
+    "category": "Groceries",
+    "price": 2.75,
+    "unit": "box",
+    "brand": "Casa Di Parma",
+    "size": "16 oz",
+    "tags": ["pasta", "vegetarian"]
+  },
+  {
+    "id": "marinara_sauce",
+    "name": "Roasted Garlic Marinara",
+    "category": "Pantry",
+    "price": 5.5,
+    "unit": "jar",
+    "brand": "Riverstone",
+    "size": "24 oz",
+    "tags": ["pasta", "vegan"]
+  },
+  {
+    "id": "fresh_spinach",
+    "name": "Fresh Baby Spinach",
+    "category": "Produce",
+    "price": 3.25,
+    "unit": "bag",
+    "brand": "Leaf & Root",
+    "size": "8 oz",
+    "tags": ["greens", "vegan", "salad"]
+  },
+  {
+    "id": "granny_smith_apples",
+    "name": "Granny Smith Apples",
+    "category": "Produce",
+    "price": 4.99,
+    "unit": "bag",
+    "brand": "Orchard Collective",
+    "size": "3 lb",
+    "tags": ["fruit", "snack", "vegan"]
+  },
+  {
+    "id": "rotisserie_chicken",
+    "name": "Herb-Roasted Rotisserie Chicken",
+    "category": "Prepared Food",
+    "price": 12.99,
+    "unit": "whole",
+    "brand": "Falcon Kitchen",
+    "size": "2.5 lb",
+    "tags": ["protein", "dinner", "gluten-free"]
+  },
+  {
+    "id": "veggie_salad_kit",
+    "name": "Super Greens Salad Kit",
+    "category": "Prepared Food",
+    "price": 9.5,
+    "unit": "kit",
+    "brand": "FreshMix",
+    "size": "20 oz",
+    "tags": ["salad", "vegan", "gluten-free"]
+  },
+  {
+    "id": "cold_brew_coffee",
+    "name": "Vanilla Cold Brew Concentrate",
+    "category": "Beverages",
+    "price": 7.99,
+    "unit": "bottle",
+    "brand": "Early Rise",
+    "size": "32 fl oz",
+    "tags": ["caffeine", "breakfast"]
+  },
+  {
+    "id": "tortilla_chips",
+    "name": "Blue Corn Tortilla Chips",
+    "category": "Snacks",
+    "price": 3.99,
+    "unit": "bag",
+    "brand": "Mesa Valley",
+    "size": "11 oz",
+    "tags": ["snack", "vegan", "gluten-free"]
+  },
+  {
+    "id": "fresh_salsa",
+    "name": "Roasted Tomato Salsa",
+    "category": "Snacks",
+    "price": 4.5,
+    "unit": "tub",
+    "brand": "Stonefire",
+    "size": "12 oz",
+    "tags": ["snack", "vegan", "gluten-free"]
+  },
+  {
+    "id": "pasta_salad_kit",
+    "name": "Mediterranean Pasta Salad Kit",
+    "category": "Prepared Food",
+    "price": 10.25,
+    "unit": "kit",
+    "brand": "Tabletop",
+    "size": "22 oz",
+    "tags": ["salad", "vegetarian"]
+  }
+]
+
+
