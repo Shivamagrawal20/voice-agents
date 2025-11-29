@@ -97,22 +97,22 @@ export const SessionView = ({
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-[0.65rem] uppercase tracking-[0.45em] text-primary/80">
-                Falcon Pantry
+                Voice Game Master
               </p>
-              <p className="text-2xl font-semibold text-white">Voice aisle is open</p>
+              <p className="text-2xl font-semibold text-white">Adventure in Progress</p>
               <p className="text-xs text-white/70">
-                Ask for ingredient bundles, swap items, or track your latest delivery.
+                Speak your actions and let the Game Master guide your story.
               </p>
             </div>
             <div className="flex flex-wrap gap-2 text-xs text-white/80">
               <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">
-                ETA 35 min
+                Fantasy World
               </span>
               <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">
-                Recipe kits ready
+                Interactive Story
               </span>
               <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">
-                Order ID pending
+                Voice-Controlled
               </span>
             </div>
           </div>

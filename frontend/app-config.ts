@@ -20,10 +20,10 @@ export interface AppConfig {
 }
 
 export const APP_CONFIG_DEFAULTS: AppConfig = {
-  companyName: 'Falcon National Bank',
-  pageTitle: 'Falcon National Fraud Alert Desk',
+  companyName: 'Voice Game Master',
+  pageTitle: 'D&D-Style Voice Adventure',
   pageDescription:
-    'Connect with Falcon National’s automated fraud specialist to review suspicious transactions in a safe sandbox demo.',
+    'Experience an interactive fantasy adventure guided by your AI Game Master. Speak your actions and watch the story unfold.',
 
   supportsChatInput: true,
   supportsVideoInput: true,
@@ -31,10 +31,10 @@ export const APP_CONFIG_DEFAULTS: AppConfig = {
   isPreConnectBufferEnabled: true,
 
   logo: '/lk-logo.svg',
-  accent: '#0047AB',
+  accent: '#FFB700',
   logoDark: '/lk-logo-dark.svg',
-  accentDark: '#012A5B',
-  startButtonText: 'Start Fraud Review',
+  accentDark: '#FFA500',
+  startButtonText: 'Begin Adventure',
 
   // for LiveKit Cloud Sandbox
   sandboxId: undefined,
