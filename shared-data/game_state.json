@@ -1,0 +1,78 @@
+{
+  "player": {
+    "name": "Adventurer",
+    "role": "player",
+    "hp": 100,
+    "max_hp": 100,
+    "attributes": {
+      "strength": 19,
+      "intelligence": 18,
+      "dexterity": 24,
+      "luck": 14
+    },
+    "inventory": [],
+    "traits": [],
+    "attitude": "neutral"
+  },
+  "npcs": {},
+  "current_location": "Mountain Trail",
+  "locations": {
+    "A Mysterious Forest Clearing": {
+      "name": "A Mysterious Forest Clearing",
+      "description": "You find yourself in a misty forest clearing. Ancient trees tower overhead, and strange sounds echo from the shadows. A worn path leads deeper into the woods, while another trail seems to head toward distant mountains.",
+      "paths": [],
+      "visited": true
+    },
+    "Misty Forest Clearing": {
+      "name": "Misty Forest Clearing",
+      "description": "A mystical clearing within an ancient forest. Towering trees obscure the sky, and a thick mist hangs in the air. The faint sounds of the forest – rustling leaves, distant animal calls – create an eerie atmosphere. A worn path leads deeper into the woods, and another trail appears to head towards towering mountains in the distance.",
+      "paths": [
+        "Worn Path (deeper into woods)",
+        "Mountain Trail (towards mountains)"
+      ],
+      "visited": true
+    },
+    "Mountain Trail": {
+      "name": "Mountain Trail",
+      "description": "The mountain trail winds its way up a gradual incline, the mist thinning as you ascend. Jagged rocks protrude from the earth, and the scent of pine replaces the damp earth of the forest. The air grows colder, and the sounds of the forest fade, replaced by the whistle of wind through the sparse, resilient trees that cling to the mountainside. The path is narrow and occasionally treacherous, but offers glimpses of the vast forest below, now shrouded in a distant, ethereal fog.",
+      "paths": [
+        "Misty Forest Clearing (downwards)",
+        "Mountain Ascent (upwards)"
+      ],
+      "visited": true
+    }
+  },
+  "events": [
+    {
+      "type": "location_change",
+      "description": "Moved to: Misty Forest Clearing",
+      "timestamp": "2025-11-29T14:59:59.093255+00:00",
+      "metadata": {
+        "is_new": true
+      }
+    },
+    {
+      "type": "Awakening",
+      "description": "Player awakens in a misty forest clearing.",
+      "timestamp": "2025-11-29T14:59:59.093563+00:00",
+      "metadata": {}
+    },
+    {
+      "type": "location_change",
+      "description": "Moved to: Mountain Trail",
+      "timestamp": "2025-11-29T15:01:22.453440+00:00",
+      "metadata": {
+        "is_new": true
+      }
+    },
+    {
+      "type": "Path Chosen",
+      "description": "Player chose the Mountain Trail.",
+      "timestamp": "2025-11-29T15:01:22.455246+00:00",
+      "metadata": {}
+    }
+  ],
+  "quests": [],
+  "session_id": "60ca2ce1-c898-4c5b-8df6-63334d259570",
+  "turn_count": 0
+}

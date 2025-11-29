@@ -6,13 +6,13 @@ function WelcomeIllustration() {
       <div className="flex w-full items-center justify-between">
         <div>
           <p className="text-xs uppercase tracking-[0.3em] text-primary/80">
-            Falcon Pantry
+            Voice Game Master
           </p>
           <h1 className="text-3xl font-bold tracking-tight text-white">
-            Night Market Concierge
+            D&D-Style Adventure
           </h1>
           <p className="text-sm text-muted-foreground/90">
-            Fresh groceries, snacks, and bundles ready for voice checkout.
+            Embark on an interactive fantasy adventure guided by your AI Game Master.
           </p>
         </div>
         <div className="relative h-24 w-24 rounded-2xl bg-black/30 p-4">
@@ -20,45 +20,36 @@ function WelcomeIllustration() {
             viewBox="0 0 120 120"
             className="h-full w-full text-primary drop-shadow-[0_10px_25px_rgba(255,183,0,0.45)]"
           >
+            {/* D20 Dice Icon */}
             <path
-              d="M20 34h80l-8 60a8 8 0 0 1-8 7H36a8 8 0 0 1-8-7l-8-60Z"
+              d="M60 10 L90 30 L90 60 L60 80 L30 60 L30 30 Z"
               fill="currentColor"
-              opacity="0.85"
+              opacity="0.9"
             />
             <path
-              d="M40 34c0-11 9-20 20-20s20 9 20 20"
+              d="M60 10 L60 80 M30 30 L90 30 M30 60 L90 60"
               stroke="#FCEFD6"
-              strokeWidth="6"
+              strokeWidth="3"
               strokeLinecap="round"
             />
-            <circle cx="46" cy="88" r="7" fill="#FCEFD6" />
-            <circle cx="82" cy="88" r="7" fill="#FCEFD6" />
-            <path
-              d="M42 56h36l-4 16H46l-4-16Z"
-              fill="#111"
-              opacity="0.5"
-            />
-            <path
-              d="M57 26c3-5 11-8 18-5"
-              stroke="#84E0C5"
-              strokeWidth="5"
-              strokeLinecap="round"
-            />
+            <circle cx="60" cy="45" r="8" fill="#FCEFD6" />
+            <circle cx="45" cy="55" r="6" fill="#FCEFD6" />
+            <circle cx="75" cy="55" r="6" fill="#FCEFD6" />
           </svg>
         </div>
       </div>
       <div className="mt-6 grid w-full grid-cols-2 gap-4 text-sm">
         <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white/90">
           <p className="text-xs uppercase tracking-wide text-muted-foreground/80">
-            Express delivery
+            Interactive Story
           </p>
-          <p className="text-lg font-semibold text-white">35 min avg</p>
+          <p className="text-lg font-semibold text-white">8-15 Turns</p>
         </div>
         <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white/90">
           <p className="text-xs uppercase tracking-wide text-muted-foreground/80">
-            Cart accuracy
+            World State
           </p>
-          <p className="text-lg font-semibold text-white">Recipe-ready</p>
+          <p className="text-lg font-semibold text-white">Persistent</p>
         </div>
       </div>
     </div>
@@ -81,15 +72,14 @@ export const WelcomeView = ({
         <WelcomeIllustration />
 
         <p className="text-foreground mb-1 text-sm uppercase tracking-[0.3em] text-primary/70">
-          Supermarket voice assistant
+          AI-Powered Game Master
         </p>
         <p className="text-foreground max-w-prose pt-2 text-2xl font-semibold leading-tight">
-          Build your grocery cart, swap items, or order full recipe kits—
-          all hands-free.
+          Experience an epic fantasy adventure where your choices shape the story.
         </p>
         <p className="text-muted-foreground max-w-lg pt-3 leading-6 text-sm">
-          Ask for pantry staples, bundle ingredients for pasta night, or track earlier orders.
-          Sona handles the list while you stay on the move.
+          Your Game Master will guide you through a dynamic world with characters, quests, and challenges.
+          Speak your actions and watch the story unfold in real-time.
         </p>
 
         <Button
@@ -98,7 +88,7 @@ export const WelcomeView = ({
           onClick={onStartCall}
           className="mt-8 w-72 rounded-full font-semibold text-base shadow-[0_15px_45px_rgba(255,183,0,0.35)] transition-all hover:shadow-[0_20px_55px_rgba(255,183,0,0.45)]"
         >
-          {startButtonText || 'Start market call'}
+          {startButtonText || 'Begin Adventure'}
         </Button>
       </section>
 
