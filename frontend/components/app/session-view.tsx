@@ -97,19 +97,19 @@ export const SessionView = ({
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-[0.65rem] uppercase tracking-[0.45em] text-primary/80">
-                Voice Game Master
+                AI Voice Agent Challenge
               </p>
-              <p className="text-2xl font-semibold text-white">Adventure in Progress</p>
+              <p className="text-2xl font-semibold text-white">E-commerce Agent Active</p>
               <p className="text-xs text-white/70">
-                Speak your actions and let the Game Master guide your story.
+                Speak naturally and let your AI agent help you shop and discover products.
               </p>
             </div>
             <div className="flex flex-wrap gap-2 text-xs text-white/80">
               <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">
-                Fantasy World
+                Powered by Murf Falcon
               </span>
               <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">
-                Interactive Story
+                E-commerce Assistant
               </span>
               <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">
                 Voice-Controlled

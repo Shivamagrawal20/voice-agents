@@ -153,8 +153,8 @@ pnpm dev
 1. Open your browser and go to: **http://localhost:3000**
 
 2. You should see the **Welcome Screen** with:
-   - "Voice Game Master" title
-   - "D&D-Style Adventure" subtitle
+   - "AI Voice Agent Challenge" title
+   - "Day 9: E-commerce Agent" subtitle
    - "Begin Adventure" button
 
 ---
@@ -393,3 +393,4 @@ Everything is set up! Just:
 4. Start speaking your actions!
 
 **Have fun and may your dice rolls be high!** 🎲✨
+

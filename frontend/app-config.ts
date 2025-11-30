@@ -20,10 +20,10 @@ export interface AppConfig {
 }
 
 export const APP_CONFIG_DEFAULTS: AppConfig = {
-  companyName: 'Voice Game Master',
-  pageTitle: 'D&D-Style Voice Adventure',
+  companyName: 'AI Voice Agent Challenge',
+  pageTitle: 'Day 9: E-commerce Agent',
   pageDescription:
-    'Experience an interactive fantasy adventure guided by your AI Game Master. Speak your actions and watch the story unfold.',
+    'Experience an interactive e-commerce voice agent powered by the fastest TTS API - Murf Falcon. Speak naturally and shop with AI assistance.',
 
   supportsChatInput: true,
   supportsVideoInput: true,
