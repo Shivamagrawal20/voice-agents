@@ -1,11 +1,7 @@
-import json
 import logging
 import random
-import uuid
-from dataclasses import dataclass, field, asdict
-from datetime import UTC, datetime
-from pathlib import Path
-from typing import Dict, List, Optional
+from dataclasses import dataclass, field
+from typing import Dict, List, Optional, TypedDict
 
 from dotenv import load_dotenv
 from livekit.agents import (
@@ -29,595 +25,246 @@ logger = logging.getLogger("agent")
 
 load_dotenv(".env.local")
 
-# Game state persistence path
-GAME_STATE_PATH = (
-    Path(__file__).resolve().parents[2] / "shared-data" / "game_state.json"
-)
-
-
 @dataclass
-class Character:
-    """Player character or NPC"""
-    name: str
-    role: str = ""  # "player", "npc", "enemy"
-    hp: int = 100
-    max_hp: int = 100
-    attributes: Dict[str, int] = field(default_factory=lambda: {
-        "strength": 10,
-        "intelligence": 10,
-        "dexterity": 10,
-        "luck": 10
-    })
-    inventory: List[str] = field(default_factory=list)
-    traits: List[str] = field(default_factory=list)
-    attitude: str = "neutral"  # For NPCs: "friendly", "neutral", "hostile"
-    
-    def to_dict(self) -> Dict:
-        return asdict(self)
-    
-    @classmethod
-    def from_dict(cls, data: Dict) -> "Character":
-        return cls(**data)
+class ImprovRound(TypedDict, total=False):
+    scenario: str
+    host_reaction: str
 
 
-@dataclass
-class Location:
-    """Game location"""
-    name: str
-    description: str
-    paths: List[str] = field(default_factory=list)  # Connected locations
-    visited: bool = False
-    
-    def to_dict(self) -> Dict:
-        return asdict(self)
-
-    @classmethod
-    def from_dict(cls, data: Dict) -> "Location":
-        return cls(**data)
+class ImprovState(TypedDict):
+    player_name: Optional[str]
+    current_round: int
+    max_rounds: int
+    rounds: List[ImprovRound]
+    phase: str  # "intro" | "awaiting_improv" | "reacting" | "done"
 
 
-@dataclass
-class WorldState:
-    """Complete game world state"""
-    player: Character
-    npcs: Dict[str, Character] = field(default_factory=dict)
-    current_location: str = "The Starting Point"
-    locations: Dict[str, Location] = field(default_factory=dict)
-    events: List[Dict] = field(default_factory=list)
-    quests: List[Dict] = field(default_factory=list)
-    session_id: str = ""
-    turn_count: int = 0
-    
-    def to_dict(self) -> Dict:
-        return {
-            "player": self.player.to_dict(),
-            "npcs": {k: v.to_dict() for k, v in self.npcs.items()},
-            "current_location": self.current_location,
-            "locations": {k: v.to_dict() for k, v in self.locations.items()},
-            "events": self.events,
-            "quests": self.quests,
-            "session_id": self.session_id,
-            "turn_count": self.turn_count,
+class ImprovHostAgent(Agent):
+    """Improv Battle host for Day 10."""
+
+    def __init__(self, max_rounds: int = 3) -> None:
+        # Basic per-session improv state kept in memory
+        self.improv_state: ImprovState = {
+            "player_name": None,
+            "current_round": 0,
+            "max_rounds": max_rounds,
+            "rounds": [],
+            "phase": "intro",
         }
-    
-    @classmethod
-    def from_dict(cls, data: Dict) -> "WorldState":
-        player = Character.from_dict(data.get("player", {}))
-        npcs = {
-            k: Character.from_dict(v) 
-            for k, v in data.get("npcs", {}).items()
-        }
-        locations = {
-            k: Location.from_dict(v)
-            for k, v in data.get("locations", {}).items()
-        }
-        return cls(
-            player=player,
-            npcs=npcs,
-            current_location=data.get("current_location", "The Starting Point"),
-            locations=locations,
-            events=data.get("events", []),
-            quests=data.get("quests", []),
-            session_id=data.get("session_id", ""),
-            turn_count=data.get("turn_count", 0),
-        )
-    
-    def add_event(self, event_type: str, description: str, metadata: Dict = None):
-        """Add an event to the history"""
-        self.events.append({
-            "type": event_type,
-            "description": description,
-            "timestamp": datetime.now(UTC).isoformat(),
-            "metadata": metadata or {},
-        })
-    
-    def add_quest(self, title: str, description: str, status: str = "active"):
-        """Add or update a quest"""
-        # Check if quest already exists
-        for quest in self.quests:
-            if quest.get("title") == title:
-                quest["status"] = status
-                quest["description"] = description
-                return
-        # Add new quest
-        self.quests.append({
-            "title": title,
-            "description": description,
-            "status": status,
-        })
-
-
-# Universe presets
-UNIVERSES = {
-    "fantasy": {
-        "name": "Classic Fantasy",
-        "system_prompt": """You are a Game Master running a classic fantasy adventure in a world of dragons, magic, and ancient kingdoms.
-
-UNIVERSE: A medieval fantasy realm with:
-- Magic exists and can be learned or found in artifacts
-- Various races: humans, elves, dwarves, orcs
-- Dangerous creatures: dragons, goblins, trolls, undead
-- Ancient ruins, dungeons, and mystical forests
-- Multiple kingdoms and factions
-
-YOUR ROLE:
-- Describe scenes vividly with sensory details (sights, sounds, smells)
-- Present choices and challenges that fit the fantasy setting
-- Use the world state to maintain consistency (NPCs, locations, events)
-- End each message with a clear prompt: "What do you do?" or "How do you proceed?"
-- Make the story engaging with 8-15 meaningful exchanges per session
-
-STORY STRUCTURE:
-- Start with the player awakening or arriving at an interesting location
-- Introduce a clear goal or quest early (find treasure, rescue someone, solve a mystery)
-- Create obstacles that require player decisions
-- Build to a climactic moment (battle, puzzle, discovery)
-- End with a satisfying conclusion or cliffhanger
-
-MECHANICS:
-- Use dice_roll for skill checks when the player attempts risky actions
-- Update world state when important things happen (meeting NPCs, finding items, changing locations)
-- Track player HP and inventory - use them to affect outcomes
-- Make combat and challenges feel dangerous but fair
-
-TONE: Epic, adventurous, with moments of tension and wonder.""",
-        "initial_location": "A Mysterious Forest Clearing",
-        "initial_location_desc": "You find yourself in a misty forest clearing. Ancient trees tower overhead, and strange sounds echo from the shadows. A worn path leads deeper into the woods, while another trail seems to head toward distant mountains.",
-    },
-    "sci_fi": {
-        "name": "Space Opera",
-        "system_prompt": """You are a Game Master running a space opera adventure in a futuristic galaxy.
-
-UNIVERSE: A vast galaxy with:
-- Multiple alien species and space stations
-- Advanced technology: starships, AI, cybernetics, energy weapons
-- Corporate empires, rebel factions, and mysterious entities
-- Dangerous planets, asteroid fields, and space anomalies
-- Cyberpunk elements: hacking, corporate espionage, underground markets
-
-YOUR ROLE:
-- Describe scenes with sci-fi flair (holograms, neon lights, alien architecture)
-- Present choices involving technology, diplomacy, or action
-- Use the world state to track NPCs, locations, and events
-- End each message with: "What do you do?" or "How do you proceed?"
-- Create engaging 8-15 exchange adventures
-
-STORY STRUCTURE:
-- Start with the player on a space station, ship, or planet
-- Introduce a mission or problem (smuggling run, rescue mission, corporate intrigue)
-- Create obstacles: security systems, hostile aliens, rival factions
-- Build to a climax: space battle, hacking sequence, or confrontation
-- End with resolution or setup for next adventure
-
-MECHANICS:
-- Use dice_roll for skill checks (hacking, piloting, combat)
-- Track technology, credits, and ship status
-- Update world state for NPCs, locations, and events
-- Make technology feel powerful but with consequences
-
-TONE: Fast-paced, high-tech, with a mix of action and intrigue.""",
-        "initial_location": "Deep Space Station Alpha",
-        "initial_location_desc": "You're on the bustling space station Alpha, a hub of trade and intrigue. Holographic displays flicker around you, and various alien species move through the corridors. Your ship is docked at Bay 7, and you have a message waiting on your datapad.",
-    },
-    "post_apocalypse": {
-        "name": "Post-Apocalypse",
-        "system_prompt": """You are a Game Master running a post-apocalyptic survival adventure.
-
-UNIVERSE: A world after the collapse:
-- Ruined cities and wastelands
-- Scavenging for resources: food, water, medicine, ammo
-- Hostile survivors, mutated creatures, and raider gangs
-- Settlements and safe zones are rare and valuable
-- Technology is scarce but valuable when found
-
-YOUR ROLE:
-- Describe the harsh, desolate world with gritty realism
-- Emphasize survival challenges: hunger, thirst, danger
-- Present moral choices in a world where resources are scarce
-- Use world state to track NPCs, locations, and resources
-- End each message with: "What do you do?" or "How do you proceed?"
-- Create tense 8-15 exchange survival stories
-
-STORY STRUCTURE:
-- Start with the player in a dangerous situation or at a settlement
-- Introduce a survival goal (find supplies, reach safety, rescue someone)
-- Create obstacles: raiders, mutants, resource scarcity, environmental hazards
-- Build to a climax: escape, confrontation, or discovery
-- End with survival or a new challenge
-
-MECHANICS:
-- Use dice_roll for survival checks, combat, and resource gathering
-- Track supplies, health, and relationships with settlements
-- Update world state for NPCs, locations, and events
-- Make survival feel challenging but not impossible
-
-TONE: Gritty, tense, with moments of hope and desperation.""",
-        "initial_location": "The Wasteland Outpost",
-        "initial_location_desc": "You're at a small outpost on the edge of the wasteland. Rusted vehicles and makeshift shelters surround you. The air is thick with dust, and you can hear the distant howl of something unnatural. Your supplies are running low, and you need to make a decision about where to go next.",
-    },
-}
-
-
-class GameMasterAgent(Agent):
-    """D&D-style Game Master that runs interactive voice adventures."""
-
-    def __init__(self, universe: str = "fantasy") -> None:
-        self.universe = universe
-        self.universe_config = UNIVERSES.get(universe, UNIVERSES["fantasy"])
-        self.world_state: Optional[WorldState] = None
         self._session: Optional[AgentSession] = None
         self._room = None
 
-        # Build system instructions
-        instructions = self.universe_config["system_prompt"] + """
+        # A small pool of fun scenarios – the LLM can also create its own based on these examples.
+        self._scenario_pool: List[str] = [
+            "You are a time-travelling tour guide explaining modern smartphones to someone from the 1800s.",
+            "You are a restaurant waiter who must calmly tell a customer that their order has escaped the kitchen.",
+            "You are a customer trying to return an obviously cursed object to a very skeptical shop owner.",
+            "You are a barista who has to tell a customer that their latte is actually a portal to another dimension.",
+            "You are a museum security guard explaining to your boss why the painting is now talking back to visitors.",
+        ]
 
-AVAILABLE TOOLS:
-- get_world_state() -> Get the current world state (player stats, location, NPCs, events, quests)
-- update_player_stats(hp_change: int, attribute: str = "", value: int = 0) -> Modify player HP or attributes
-- add_to_inventory(item: str) -> Add an item to player inventory
-- remove_from_inventory(item: str) -> Remove an item from player inventory
-- update_location(location_name: str, description: str, paths: List[str]) -> Change or add a location
-- add_npc(name: str, role: str, attitude: str = "neutral", hp: int = 100) -> Add or update an NPC
-- add_event(event_type: str, description: str) -> Record an important event
-- add_quest(title: str, description: str, status: str = "active") -> Add or update a quest
-- dice_roll(sides: int = 20, modifier: int = 0, reason: str = "") -> Roll dice for skill checks
-- restart_game() -> Start a fresh adventure (use when player explicitly requests it)
+        instructions = """
+You are the energetic host of a TV improv show called "Improv Battle".
 
-IMPORTANT RULES:
-1. Always end your messages with a question prompting player action: "What do you do?" or "How do you proceed?"
-2. Use dice_roll when the player attempts something risky or uncertain
-3. Update world state when important things happen (meeting NPCs, finding items, changing locations)
-4. Keep track of player HP - if it reaches 0, the adventure ends (but you can offer a dramatic recovery)
-5. Reference past events and NPCs to maintain continuity
-6. Make each session feel like a complete mini-adventure (8-15 exchanges)
-7. Be descriptive and immersive - paint vivid scenes with your words
-8. When the player asks about their stats, inventory, or the world, use get_world_state to provide accurate information
+GOAL:
+- Run a short-form improv game for ONE player.
+- Play out clear, funny scenarios and give realistic reactions.
+- Always keep things respectful and safe while allowing light teasing and honest critique.
 
-STORY PACE:
-- Turn 1-3: Introduction and scene setting
-- Turn 4-8: Rising action, obstacles, choices
-- Turn 9-12: Climax, major challenge or discovery
-- Turn 13-15: Resolution or cliffhanger ending
+PERSONA & STYLE:
+- High-energy, witty, and confident, like a TV game show host.
+- You clearly explain the rules at the beginning.
+- Your reactions are varied and realistic:
+  - Sometimes amused, sometimes unimpressed, sometimes pleasantly surprised.
+  - Mix supportive, neutral, and mildly critical tones at random.
+  - You are never abusive or cruel. Keep it playful, constructive, and safe.
 
-Remember: You are the Game Master. Your job is to create an engaging, interactive story that responds to the player's choices while maintaining consistency through the world state.
+GAME STRUCTURE:
+1) INTRO:
+   - Introduce the show "Improv Battle".
+   - Ask for the player's name if you don't know it.
+   - Briefly explain the rules:
+     - There will be N short improv rounds (usually 3).
+     - In each round you set a scene and ask the player to act it out.
+     - When they are done, you react and move on.
+   - Ask the player if they are ready to begin.
+
+2) ROUNDS:
+   For each round:
+   - Use the `start_next_round` tool to advance the round and get a scenario.
+   - Announce the round number and the scenario.
+   - VERY CLEARLY invite the player to start improvising in character.
+   - Let the player perform for one or more turns.
+   - When they are clearly done (e.g. they say something like "end scene", "okay I'm done",
+     or they signal they want to move on), react to their performance.
+   - Use the `record_reaction` tool after your reaction so their reaction text is stored.
+   - Then either:
+     - Start the next round (if `current_round < max_rounds`), or
+     - Move to the closing summary when all rounds are complete.
+
+3) REACTIONS:
+   After each scene, your reaction should:
+   - Mention specific things they did (interesting lines, choices, tone, etc.).
+   - Mix praise and gentle critique:
+     - Sometimes: very supportive and impressed.
+     - Sometimes: more neutral or mildly critical (e.g. “you could have slowed down there”).
+   - Randomly vary your tone between:
+     - More supportive
+     - Balanced / neutral
+     - Mildly critical but constructive
+   - NEVER insult the player or use unsafe or hateful language.
+
+4) CLOSING SUMMARY:
+   - When `current_round` reaches `max_rounds`, give a short overall summary:
+     - What kind of improviser they seemed to be
+       (e.g. character-focused, absurd-comedy, emotional, deadpan, etc.).
+     - Reference a few specific memorable moments from earlier scenes.
+   - Thank them for playing and clearly end the show.
+
+5) EARLY EXIT:
+   - If the player clearly asks to stop (e.g. “stop game”, “end show”, “I want to quit”):
+     - Confirm they want to end.
+     - If they confirm, give a short closing comment and end the show gracefully.
+     - You can also call the `end_game_early` tool to mark the game as done.
+
+BACKEND STATE & TOOLS:
+- The backend keeps an `improv_state` object with:
+  - player_name: string | null
+  - current_round: int
+  - max_rounds: int
+  - rounds: list of {"scenario": str, "host_reaction": str}
+  - phase: "intro" | "awaiting_improv" | "reacting" | "done"
+
+You have the following tools to help you run the game. Use them deliberately:
+- get_improv_state() -> returns the current improv_state.
+- set_player_name(name: str) -> set the player's name if you learn it.
+- start_next_round() -> increments current_round, picks a scenario, and updates phase to "awaiting_improv".
+- record_reaction(reaction: str) -> save your latest reaction for the current round and set phase to "reacting".
+- end_game_early(reason: str = "") -> mark the game as done when the player chooses to stop.
+
+RULES:
+- Keep the conversation focused on the Improv Battle game.
+- Do NOT start a new fantasy adventure or unrelated story.
+- Speak in short, clear paragraphs so the audio experience feels snappy.
+- Periodically remind the player that they can say “end scene” to move on or “stop game” to exit.
 """
 
         super().__init__(instructions=instructions)
-        self._initialize_world()
 
-    def _initialize_world(self):
-        """Initialize a fresh world state"""
-        self.world_state = WorldState(
-            player=Character(
-                name="Adventurer",
-                role="player",
-                hp=100,
-                max_hp=100,
-                attributes={
-                    "strength": random.randint(8, 15),
-                    "intelligence": random.randint(8, 15),
-                    "dexterity": random.randint(8, 15),
-                    "luck": random.randint(8, 15),
-                },
-                inventory=[],
-                traits=[],
-            ),
-            current_location=self.universe_config["initial_location"],
-            session_id=str(uuid.uuid4()),
-            turn_count=0,
-        )
-        
-        # Add initial location
-        self.world_state.locations[self.world_state.current_location] = Location(
-            name=self.world_state.current_location,
-            description=self.universe_config["initial_location_desc"],
-            paths=[],
-            visited=True,
-        )
-        
-        logger.info(f"Initialized new game world: {self.world_state.session_id}")
-
-    def _save_world_state(self):
-        """Save world state to file"""
-        try:
-            state_dict = self.world_state.to_dict()
-            GAME_STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
-            with open(GAME_STATE_PATH, "w", encoding="utf-8") as f:
-                json.dump(state_dict, f, indent=2, ensure_ascii=False)
-            logger.info("World state saved")
-        except Exception as exc:
-            logger.error(f"Failed to save world state: {exc}")
-
-    def _load_world_state(self) -> bool:
-        """Load world state from file"""
-        try:
-            if GAME_STATE_PATH.exists():
-                with open(GAME_STATE_PATH, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                self.world_state = WorldState.from_dict(data)
-                logger.info(f"Loaded world state: {self.world_state.session_id}")
-                return True
-        except Exception as exc:
-            logger.error(f"Failed to load world state: {exc}")
-        return False
+    @property
+    def max_rounds(self) -> int:
+        return self.improv_state["max_rounds"]
 
     @function_tool
-    async def get_world_state(self, context: RunContext) -> Dict:
-        """Get the current world state including player stats, location, NPCs, events, and quests."""
-        if not self.world_state:
-            self._initialize_world()
-        
-        self.world_state.turn_count += 1
-        state_dict = self.world_state.to_dict()
-        logger.info(f"World state retrieved - Turn {self.world_state.turn_count}")
-        return state_dict
+    async def get_improv_state(self, context: RunContext) -> Dict:
+        """Get the current improv game state (player name, round info, and phase)."""
+        return dict(self.improv_state)
 
     @function_tool
-    async def update_player_stats(
-        self, 
-        context: RunContext, 
-        hp_change: int = 0,
-        attribute: str = "",
-        value: int = 0
-    ) -> Dict:
-        """Update player HP (hp_change can be negative for damage) or modify an attribute."""
-        if not self.world_state:
-            self._initialize_world()
-        
-        player = self.world_state.player
-        
-        if hp_change != 0:
-            player.hp = max(0, min(player.max_hp, player.hp + hp_change))
-        
-        if attribute and value != 0:
-            if attribute in player.attributes:
-                player.attributes[attribute] = max(1, player.attributes[attribute] + value)
-        
-        self._save_world_state()
-        return {
-            "status": "updated",
-            "player": player.to_dict(),
-        }
+    async def set_player_name(self, context: RunContext, name: str) -> Dict:
+        """Set or update the player's name for this improv session."""
+        cleaned = name.strip()
+        if cleaned:
+            self.improv_state["player_name"] = cleaned
+        return {"player_name": self.improv_state["player_name"]}
 
     @function_tool
-    async def add_to_inventory(self, context: RunContext, item: str) -> Dict:
-        """Add an item to the player's inventory."""
-        if not self.world_state:
-            self._initialize_world()
-        
-        if item not in self.world_state.player.inventory:
-            self.world_state.player.inventory.append(item)
-            self.world_state.add_event("item_found", f"Found: {item}")
-            self._save_world_state()
+    async def start_next_round(self, context: RunContext) -> Dict:
+        """Advance to the next improv round and return the chosen scenario."""
+        if self.improv_state["phase"] == "done":
             return {
-                "status": "added",
-                "item": item,
-                "inventory": self.world_state.player.inventory,
+                "status": "finished",
+                "message": "All improv rounds are already complete.",
+                "state": dict(self.improv_state),
             }
-        return {
-            "status": "already_owned",
-            "item": item,
-        }
 
-    @function_tool
-    async def remove_from_inventory(self, context: RunContext, item: str) -> Dict:
-        """Remove an item from the player's inventory."""
-        if not self.world_state:
-            self._initialize_world()
-        
-        if item in self.world_state.player.inventory:
-            self.world_state.player.inventory.remove(item)
-            self.world_state.add_event("item_lost", f"Lost: {item}")
-            self._save_world_state()
+        if self.improv_state["current_round"] >= self.improv_state["max_rounds"]:
+            self.improv_state["phase"] = "done"
             return {
-                "status": "removed",
-                "item": item,
-                "inventory": self.world_state.player.inventory,
-            }
-        return {
-            "status": "not_found",
-            "item": item,
+                "status": "no_more_rounds",
+                "message": "No more rounds left. You should give a closing summary.",
+                "state": dict(self.improv_state),
             }
 
-    @function_tool
-    async def update_location(
-        self,
-        context: RunContext,
-        location_name: str,
-        description: str,
-        paths: List[str] = None,
-    ) -> Dict:
-        """Update or add a location. Mark it as visited if the player moves there."""
-        if not self.world_state:
-            self._initialize_world()
-        
-        is_new = location_name not in self.world_state.locations
-        self.world_state.locations[location_name] = Location(
-            name=location_name,
-            description=description,
-            paths=paths or [],
-            visited=True,
+        # Choose a scenario – cycle through the pool and add some randomness.
+        idx = self.improv_state["current_round"] % len(self._scenario_pool)
+        scenario = random.choice(self._scenario_pool[idx:] or self._scenario_pool)
+
+        self.improv_state["current_round"] += 1
+        self.improv_state["phase"] = "awaiting_improv"
+
+        round_info: ImprovRound = {
+            "scenario": scenario,
+            "host_reaction": "",
+        }
+        self.improv_state["rounds"].append(round_info)
+
+        logger.info(
+            "Starting improv round %s / %s: %s",
+            self.improv_state["current_round"],
+            self.improv_state["max_rounds"],
+            scenario,
         )
-        
-        if location_name != self.world_state.current_location:
-            self.world_state.current_location = location_name
-            self.world_state.add_event(
-                "location_change",
-                f"Moved to: {location_name}",
-                {"is_new": is_new}
-            )
-        
-        self._save_world_state()
+
         return {
-            "status": "updated",
-            "location": location_name,
-            "is_new": is_new,
+            "status": "started",
+            "round_number": self.improv_state["current_round"],
+            "scenario": scenario,
+            "state": dict(self.improv_state),
         }
 
     @function_tool
-    async def add_npc(
-        self,
-        context: RunContext,
-        name: str,
-        role: str,
-        attitude: str = "neutral",
-        hp: int = 100,
-    ) -> Dict:
-        """Add or update an NPC character."""
-        if not self.world_state:
-            self._initialize_world()
-        
-        is_new = name not in self.world_state.npcs
-        self.world_state.npcs[name] = Character(
-            name=name,
-            role=role,
-            attitude=attitude,
-            hp=hp,
-            max_hp=hp,
-        )
-        
-        if is_new:
-            self.world_state.add_event("npc_met", f"Met: {name} ({role})")
-        
-        self._save_world_state()
-        return {
-            "status": "added" if is_new else "updated",
-            "npc": self.world_state.npcs[name].to_dict(),
-        }
+    async def record_reaction(self, context: RunContext, reaction: str) -> Dict:
+        """Store the host's reaction text for the current round."""
+        if not self.improv_state["rounds"]:
+            return {
+                "status": "no_round",
+                "message": "There is no active round to attach a reaction to.",
+            }
 
-    @function_tool
-    async def add_event(
-        self, context: RunContext, event_type: str, description: str
-    ) -> Dict:
-        """Record an important event in the game history."""
-        if not self.world_state:
-            self._initialize_world()
-        
-        self.world_state.add_event(event_type, description)
-        self._save_world_state()
+        latest_round = self.improv_state["rounds"][-1]
+        latest_round["host_reaction"] = reaction.strip()
+        self.improv_state["phase"] = "reacting"
+
+        logger.info(
+            "Recorded reaction for round %s",
+            self.improv_state["current_round"],
+        )
+
+        # If we've reacted to the last round, the LLM should move toward closing.
+        if self.improv_state["current_round"] >= self.improv_state["max_rounds"]:
+            hint = "All rounds have a stored reaction. You should now move toward a closing summary."
+        else:
+            hint = "You can move on to the next improv round when appropriate."
+
         return {
             "status": "recorded",
-            "event_type": event_type,
-            "description": description,
+            "round_number": self.improv_state["current_round"],
+            "state": dict(self.improv_state),
+            "hint": hint,
         }
 
     @function_tool
-    async def add_quest(
-        self,
-        context: RunContext,
-        title: str,
-        description: str,
-        status: str = "active",
-    ) -> Dict:
-        """Add or update a quest."""
-        if not self.world_state:
-            self._initialize_world()
-        
-        self.world_state.add_quest(title, description, status)
-        self._save_world_state()
+    async def end_game_early(self, context: RunContext, reason: str = "") -> Dict:
+        """Mark the improv game as finished early, e.g. when the player asks to stop."""
+        self.improv_state["phase"] = "done"
+        logger.info("Improv game ended early. Reason: %s", reason)
         return {
-            "status": "added",
-            "quest": {
-                "title": title,
-                "description": description,
-                "status": status,
-            },
-        }
-
-    @function_tool
-    async def dice_roll(
-        self,
-        context: RunContext,
-        sides: int = 20,
-        modifier: int = 0,
-        reason: str = "",
-    ) -> Dict:
-        """Roll dice for skill checks, combat, or random events. Returns the roll result."""
-        roll = random.randint(1, sides)
-        total = roll + modifier
-        
-        # Determine outcome tier
-        if sides == 20:  # D20 system
-            if total >= 18:
-                outcome = "critical_success"
-            elif total >= 12:
-                outcome = "success"
-            elif total >= 8:
-                outcome = "partial_success"
-            else:
-                outcome = "failure"
-        else:
-            # Generic system
-            threshold = sides // 2
-            if total >= threshold + (sides // 4):
-                outcome = "success"
-            elif total >= threshold:
-                outcome = "partial_success"
-            else:
-                outcome = "failure"
-        
-        result = {
-            "roll": roll,
-            "modifier": modifier,
-            "total": total,
-            "outcome": outcome,
+            "status": "ended",
             "reason": reason,
-        }
-        
-        logger.info(f"Dice roll: {result}")
-        return result
-
-    @function_tool
-    async def restart_game(self, context: RunContext) -> Dict:
-        """Start a completely fresh adventure. Use this when the player explicitly requests to restart."""
-        self._initialize_world()
-        self._save_world_state()
-        return {
-            "status": "restarted",
-            "message": "A new adventure begins!",
+            "state": dict(self.improv_state),
         }
 
     async def send_initial_greeting(self):
-        """Send the opening Game Master greeting when audio is ready."""
+        """Send the opening Improv Battle greeting when audio is ready."""
         if not self._session:
             return
         
-        # Get initial world state to include in greeting
-        if not self.world_state:
-            self._initialize_world()
-        
-        location = self.world_state.locations.get(
-            self.world_state.current_location,
-            Location(
-                name=self.world_state.current_location,
-                description=self.universe_config["initial_location_desc"],
-            )
-        )
-        
         greeting = (
-            f"Welcome, adventurer, to the world of {self.universe_config['name']}. "
-            f"{location.description} "
-            "The story begins now. What do you do?"
+            "Welcome to Improv Battle, the short-form improv voice game show! "
+            "I'm your AI host, here to throw you into a few ridiculous scenarios and react to your performance. "
+            "We'll play through a handful of quick rounds. "
+            "First, tell me your name, and then say you're ready to start the Improv Battle."
         )
         await self._session.say(greeting, allow_interruptions=True)
 
@@ -658,14 +305,13 @@ async def entrypoint(ctx: JobContext):
 
     ctx.add_shutdown_callback(log_usage)
 
-    # Create Game Master agent (default to fantasy universe)
-    # You can change this to "sci_fi" or "post_apocalypse" for different universes
-    game_master = GameMasterAgent(universe="fantasy")
-    game_master._session = session
-    game_master._room = ctx.room
+    # Create Improv Battle host agent for Day 10
+    improv_host = ImprovHostAgent(max_rounds=3)
+    improv_host._session = session
+    improv_host._room = ctx.room
 
     await session.start(
-        agent=game_master,
+        agent=improv_host,
         room=ctx.room,
         room_input_options=RoomInputOptions(
             noise_cancellation=noise_cancellation.BVC(),
@@ -677,7 +323,7 @@ async def entrypoint(ctx: JobContext):
     import asyncio
 
     await asyncio.sleep(1.0)
-    await game_master.send_initial_greeting()
+    await improv_host.send_initial_greeting()
 
 
 if __name__ == "__main__":

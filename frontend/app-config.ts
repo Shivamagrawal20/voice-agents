@@ -21,9 +21,9 @@ export interface AppConfig {
 
 export const APP_CONFIG_DEFAULTS: AppConfig = {
   companyName: 'AI Voice Agent Challenge',
-  pageTitle: 'Day 9: E-commerce Agent',
+  pageTitle: 'Day 10: Improv Battle',
   pageDescription:
-    'Experience an interactive e-commerce voice agent powered by the fastest TTS API - Murf Falcon. Speak naturally and shop with AI assistance.',
+    'Step onto the Improv Battle stage with a high-energy voice host powered by the fastest TTS API - Murf Falcon. Play through short-form improv scenes and get live reactions to your performance.',
 
   supportsChatInput: true,
   supportsVideoInput: true,
@@ -34,7 +34,7 @@ export const APP_CONFIG_DEFAULTS: AppConfig = {
   accent: '#FFB700',
   logoDark: '/lk-logo-dark.svg',
   accentDark: '#FFA500',
-  startButtonText: 'Begin Adventure',
+  startButtonText: 'Start Improv Battle',
 
   // for LiveKit Cloud Sandbox
   sandboxId: undefined,
