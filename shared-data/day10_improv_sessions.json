@@ -1,0 +1,11 @@
+[
+  {
+    "player_name": "Jack",
+    "current_round": 0,
+    "max_rounds": 3,
+    "rounds": [],
+    "phase": "intro",
+    "createdAt": "2025-12-01T00:00:00Z",
+    "notes": "Seed Improv Battle session state for Day 10 with player Jack."
+  }
+]

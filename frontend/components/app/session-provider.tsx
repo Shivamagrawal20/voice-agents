@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useMemo } from 'react';
+import { createContext, useContext, useMemo, useState } from 'react';
 import { RoomContext } from '@livekit/components-react';
 import { APP_CONFIG_DEFAULTS, type AppConfig } from '@/app-config';
 import { useRoom } from '@/hooks/useRoom';
@@ -10,11 +10,15 @@ const SessionContext = createContext<{
   isSessionActive: boolean;
   startSession: () => void;
   endSession: () => void;
+  playerName: string;
+  setPlayerName: (name: string) => void;
 }>({
   appConfig: APP_CONFIG_DEFAULTS,
   isSessionActive: false,
   startSession: () => {},
   endSession: () => {},
+  playerName: '',
+  setPlayerName: () => {},
 });
 
 interface SessionProviderProps {
@@ -23,10 +27,11 @@ interface SessionProviderProps {
 }
 
 export const SessionProvider = ({ appConfig, children }: SessionProviderProps) => {
-  const { room, isSessionActive, startSession, endSession } = useRoom(appConfig);
+  const [playerName, setPlayerName] = useState('');
+  const { room, isSessionActive, startSession, endSession } = useRoom(appConfig, playerName);
   const contextValue = useMemo(
-    () => ({ appConfig, isSessionActive, startSession, endSession }),
-    [appConfig, isSessionActive, startSession, endSession]
+    () => ({ appConfig, isSessionActive, startSession, endSession, playerName, setPlayerName }),
+    [appConfig, isSessionActive, startSession, endSession, playerName]
   );
 
   return (

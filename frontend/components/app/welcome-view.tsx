@@ -1,3 +1,4 @@
+import React from 'react';
 import { Button } from '@/components/livekit/button';
 
 function WelcomeIllustration() {
@@ -8,10 +9,10 @@ function WelcomeIllustration() {
           <p className="text-primary/80 text-xs tracking-[0.3em] uppercase">
             AI Voice Agent Challenge
           </p>
-          <h1 className="text-3xl font-bold tracking-tight text-white">Day 9: E-commerce Agent</h1>
+          <h1 className="text-3xl font-bold tracking-tight text-white">Day 10: Improv Battle</h1>
           <p className="text-muted-foreground/90 text-sm">
-            Experience an interactive e-commerce voice agent powered by the fastest TTS API - Murf
-            Falcon.
+            Step onto the improv stage with a high-energy AI host powered by the fastest TTS API -
+            Murf Falcon.
           </p>
         </div>
         <div className="relative h-24 w-24 rounded-2xl bg-black/30 p-4">
@@ -56,11 +57,15 @@ function WelcomeIllustration() {
 interface WelcomeViewProps {
   startButtonText: string;
   onStartCall: () => void;
+  playerName: string;
+  onPlayerNameChange: (name: string) => void;
 }
 
 export const WelcomeView = ({
   startButtonText,
   onStartCall,
+  playerName,
+  onPlayerNameChange,
   ref,
 }: React.ComponentProps<'div'> & WelcomeViewProps) => {
   return (
@@ -68,18 +73,31 @@ export const WelcomeView = ({
       <section className="flex flex-col items-center justify-center bg-transparent text-center">
         <WelcomeIllustration />
 
-        <p className="text-foreground text-primary/70 mb-1 text-sm tracking-[0.3em] uppercase">
+        <p className="text-primary/70 mb-1 text-sm tracking-[0.3em] uppercase">
           Powered by Murf Falcon
         </p>
         <p className="text-foreground max-w-prose pt-2 text-2xl leading-tight font-semibold">
-          Shop naturally with your AI voice agent. Browse products, ask questions, and complete
-          purchases through conversation.
+          Play a short-form improv game show with your AI host. Act out wild scenarios and hear how
+          the host reacts to your performance.
         </p>
         <p className="text-muted-foreground max-w-lg pt-3 text-sm leading-6">
-          Your e-commerce agent will help you discover products, answer questions, and guide you
-          through a seamless shopping experience. Speak naturally and watch the magic happen in
-          real-time.
+          Join as a contestant, improvise scenes like a time-travelling tour guide or a cursed
+          customer, and get a mix of praise, playful teasing, and honest feedback. Say “end scene”
+          when you want to move to the next round or “stop game” to wrap up early.
         </p>
+
+        <div className="mt-6 flex w-full max-w-sm flex-col gap-2 text-left">
+          <label className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+            Name
+          </label>
+          <input
+            type="text"
+            value={playerName}
+            onChange={(e) => onPlayerNameChange(e.target.value)}
+            placeholder="Enter your stage name"
+            className="bg-background/80 text-foreground focus:border-primary w-full rounded-xl border border-white/20 px-4 py-2 text-sm shadow-[0_8px_25px_rgba(0,0,0,0.35)] ring-0 outline-none placeholder:text-white/40 focus:outline-none"
+          />
+        </div>
 
         <Button
           variant="primary"
@@ -87,7 +105,7 @@ export const WelcomeView = ({
           onClick={onStartCall}
           className="mt-8 w-72 rounded-full text-base font-semibold shadow-[0_15px_45px_rgba(255,183,0,0.35)] transition-all hover:shadow-[0_20px_55px_rgba(255,183,0,0.45)]"
         >
-          {startButtonText || 'Begin Adventure'}
+          {startButtonText || 'Start Improv Battle'}
         </Button>
       </section>
 

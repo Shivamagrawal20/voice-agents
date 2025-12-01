@@ -33,11 +33,7 @@ const BOTTOM_VIEW_MOTION_PROPS = {
   initial: 'hidden',
   animate: 'visible',
   exit: 'hidden',
-  transition: {
-    duration: 0.3,
-    delay: 0.5,
-    ease: 'easeOut',
-  },
+  transition: { duration: 0.3, delay: 0.5 },
 };
 
 interface FadeProps {
@@ -93,15 +89,16 @@ export const SessionView = ({
   return (
     <section className="relative z-10 h-full w-full overflow-hidden" {...props}>
       <div className="pointer-events-none absolute inset-x-0 top-6 z-10 flex justify-center px-4 md:top-8">
-        <div className="w-full max-w-2xl rounded-3xl border border-white/10 bg-card/70 p-5 text-left text-white backdrop-blur-3xl">
+        <div className="bg-card/70 w-full max-w-2xl rounded-3xl border border-white/10 p-5 text-left text-white backdrop-blur-3xl">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="text-[0.65rem] uppercase tracking-[0.45em] text-primary/80">
+              <p className="text-primary/80 text-[0.65rem] tracking-[0.45em] uppercase">
                 AI Voice Agent Challenge
               </p>
-              <p className="text-2xl font-semibold text-white">E-commerce Agent Active</p>
+              <p className="text-2xl font-semibold text-white">Improv Battle Live</p>
               <p className="text-xs text-white/70">
-                Speak naturally and let your AI agent help you shop and discover products.
+                Act out each scene in character while your AI host reacts with praise, critique, and
+                playful commentary.
               </p>
             </div>
             <div className="flex flex-wrap gap-2 text-xs text-white/80">
@@ -109,10 +106,10 @@ export const SessionView = ({
                 Powered by Murf Falcon
               </span>
               <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">
-                E-commerce Assistant
+                Improv Game Show
               </span>
               <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">
-                Voice-Controlled
+                Voice-First
               </span>
             </div>
           </div>
